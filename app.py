@@ -17,8 +17,8 @@ if 'match_data' not in st.session_state:
         'round_name': '',
         'group_name': '',
         'match_no': '',
-        'target_score_reg': 25,  # คะแนนจบเซตปกติ (เซต 1-2)
-        'target_score_tie': 15,  # คะแนนจบเซตตัดสิน (เซต 3)
+        'target_score_reg': 25,
+        'target_score_tie': 15,
         'team_a': 'บุคลากร',
         'team_b': 'นักศึกษาชั้นปีที่ 2',
         'scores': [{'a': 0, 'b': 0}, {'a': 0, 'b': 0}, {'a': 0, 'b': 0}],
@@ -59,20 +59,22 @@ def rotate_team(team_key):
     r = st.session_state.match_data[f'players_{team_key}']['court']
     st.session_state.match_data[f'players_{team_key}']['court'] = [r[-1]] + r[:-1]
 
+def check_set_winner(sa, sb, target):
+    if (sa >= target or sb >= target) and abs(sa - sb) >= 2:
+        return 'a' if sa > sb else 'b'
+    return None
+
 def calculate_sets_won():
     m = st.session_state.match_data
     sets_a = 0
     sets_b = 0
     for i in range(3):
-        sa, sb = m['scores'][i]['a'], m['scores'][i]['b']
         target = m['target_score_reg'] if i < 2 else m['target_score_tie']
-        
-        # กฎต้องถึงคะแนนเป้าหมาย และ ชนะห่างอย่างน้อย 2 แต้ม
-        if (sa >= target or sb >= target) and abs(sa - sb) >= 2:
-            if sa > sb:
-                sets_a += 1
-            else:
-                sets_b += 1
+        winner = check_set_winner(m['scores'][i]['a'], m['scores'][i]['b'], target)
+        if winner == 'a':
+            sets_a += 1
+        elif winner == 'b':
+            sets_b += 1
     return sets_a, sets_b
 
 sets_won_a, sets_won_b = calculate_sets_won()
@@ -90,9 +92,21 @@ def add_score(team):
     curr_set = st.session_state.match_data['current_set']
     st.session_state.match_data['scores'][curr_set][team] += 1
     
+    # หมุนตำแหน่งถ้าเปลี่ยนฝั่งเสิร์ฟ
     if st.session_state.match_data['server'] != team:
         st.session_state.match_data['server'] = team
         rotate_team(team)
+
+    # ตรวจสอบการชนะเซตอัตโนมัติ
+    curr_target = st.session_state.match_data['target_score_reg'] if curr_set < 2 else st.session_state.match_data['target_score_tie']
+    sa = st.session_state.match_data['scores'][curr_set]['a']
+    sb = st.session_state.match_data['scores'][curr_set]['b']
+    
+    if check_set_winner(sa, sb, curr_target):
+        # ตรวจสอบว่าแมตช์ยังไม่จบและมีเซตถัดไปให้ไปต่อ
+        new_sets_a, new_sets_b = calculate_sets_won()
+        if new_sets_a < 2 and new_sets_b < 2 and curr_set < 2:
+            st.session_state.match_data['current_set'] += 1
 
 # --- 2. SIDEBAR: MATCH INFO & PLAYERS ---
 with st.sidebar:
@@ -147,13 +161,26 @@ if match_winner:
     st.balloons()
     st.success(f"🎉 **การแข่งขันจบลงแล้ว! ผู้ชนะคือ: {match_winner}** (ชนะ {sets_won_a} - {sets_won_b} เซต)")
 
-# --- 3. MAIN SCOREBOARD ---
+# --- 3. SET SELECTOR & MAIN SCOREBOARD ---
 curr_set = st.session_state.match_data['current_set']
 curr_target = st.session_state.match_data['target_score_reg'] if curr_set < 2 else st.session_state.match_data['target_score_tie']
 
+st.markdown("### 📌 สลับ/เลือกเซตที่กำลังบันทึกคะแนน")
+selected_set = st.radio(
+    "เลือกเซต:",
+    options=[0, 1, 2],
+    format_func=lambda x: f"เซตที่ {x + 1} ({st.session_state.match_data['scores'][x]['a']} - {st.session_state.match_data['scores'][x]['b']})",
+    index=curr_set,
+    horizontal=True
+)
+
+if selected_set != curr_set:
+    st.session_state.match_data['current_set'] = selected_set
+    st.rerun()
+
 ctrl_c1, ctrl_c2 = st.columns([2, 1])
 with ctrl_c1:
-    st.subheader(f"🏆 การแข่งขันเซตที่ {curr_set + 1} / 3 (เป้าหมาย {curr_target} คะแนน / ต้องห่าง 2 แต้ม) | สกอร์รวม: {st.session_state.match_data['team_a']} ({sets_won_a}) - ({sets_won_b}) {st.session_state.match_data['team_b']}")
+    st.subheader(f"🏆 กำลังแข่ง: เซตที่ {curr_set + 1} / 3 (เป้าหมาย {curr_target} คะแนน / ต้องห่าง 2 แต้ม) | สกอร์รวม: {st.session_state.match_data['team_a']} ({sets_won_a}) - ({sets_won_b}) {st.session_state.match_data['team_b']}")
 with ctrl_c2:
     if st.button("↩️ ย้อนกลับคะแนน/ตำแหน่งล่าสุด (Undo)", type="secondary", use_container_width=True):
         undo_last_action()
@@ -264,7 +291,7 @@ with c2:
 
 with c3:
     if curr_set < 2:
-        if st.button("➡️ จบเซตนี้ / ไปเซตถัดไป", type="primary", use_container_width=True, disabled=bool(match_winner)):
+        if st.button("➡️ ข้ามไปเซตถัดไป", type="primary", use_container_width=True, disabled=bool(match_winner)):
             save_history()
             st.session_state.match_data['current_set'] += 1
             st.rerun()
