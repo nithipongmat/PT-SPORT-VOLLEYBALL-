@@ -3,11 +3,7 @@ import pandas as pd
 import time
 import copy
 from io import BytesIO
-from reportlab.lib.pagesizes import letter, A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
-from reportlab.pdfgen import canvas
+import xlsxwriter
 
 st.set_page_config(page_title="PT SPORT DAY 2026 - Scorekeeper Pro", layout="wide")
 
@@ -17,7 +13,7 @@ DEFAULT_COURT_B = ['ผู้เล่น B1 (4)', 'ผู้เล่น B2 (3)
 # --- 1. INITIALIZE SESSION STATE ---
 if 'match_data' not in st.session_state:
     st.session_state.match_data = {
-        'gender': 'ประสม',
+        'gender': 'ผสม',
         'round_name': '',
         'group_name': '',
         'match_no': '',
@@ -41,7 +37,7 @@ if 'match_data' not in st.session_state:
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-st.title("🏐 PT SPORT DAY 2026 - Volleyball Scorekeeper Pro")
+st.title("🏐 PT SPORT DAY 2026 - Volleyball Score")
 
 # --- HELPER FUNCTIONS ---
 def save_history():
@@ -239,97 +235,106 @@ if st.session_state.get('start_timer', False):
     timer_placeholder.success("🔔 หมดเวลาการขอเวลานอก!")
     st.session_state.start_timer = False
 
-# --- 5. EXPORT PDF SCORESHEET (A4 FORM) ---
-def generate_pdf_a4():
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=20, leftMargin=20, topMargin=20, bottomMargin=20)
-    elements = []
-    
-    m = st.session_state.match_data
-    styles = getSampleStyleSheet()
-    
-    title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=14, alignment=1, spaceAfter=8)
-    sub_style = ParagraphStyle('SubStyle', parent=styles['Normal'], fontName='Helvetica', fontSize=9, alignment=1, spaceAfter=12)
-    
-    # Title & Header
-    elements.append(Paragraph("Volleyball Score Sheet", title_style))
-    header_text = f"Type: {m['gender']} | Round: {m['round_name']} | Group: {m['group_name']} | Match No: {m['match_no']} | Team 1: {m['team_a']} vs Team 2: {m['team_b']}"
-    elements.append(Paragraph(header_text, sub_style))
+# --- 5. EXPORT EDITABLE EXCEL (A4 LANDSCAPE FORMATTED) ---
+def generate_a4_editable_excel():
+    output = BytesIO()
+    workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+    ws = workbook.add_worksheet('ใบบันทึกคะแนน')
 
-    # Sets Tables
+    # ตั้งค่าหน้ากระดาษเป็น A4 แนวนอน (Landscape) ฟิตพอดี 1 หน้า
+    ws.set_paper(9)  # 9 = A4 Paper
+    ws.set_landscape()
+    ws.fit_to_pages(1, 1)
+
+    # Styles
+    title_fmt = workbook.add_format({'bold': True, 'font_size': 16, 'align': 'center', 'valign': 'vcenter'})
+    header_fmt = workbook.add_format({'bold': True, 'font_size': 9, 'align': 'center', 'valign': 'vcenter', 'border': 1, 'bg_color': '#E0E0E0'})
+    border_fmt = workbook.add_format({'border': 1, 'align': 'center', 'valign': 'vcenter', 'font_size': 9})
+    mark_fmt = workbook.add_format({'border': 1, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#4CAF50', 'font_color': 'white', 'bold': True})
+    
+    # Header Section
+    m = st.session_state.match_data
+    ws.merge_range('A1:AE1', 'ใบบันทึกคะแนนวอลเลย์บอล', title_fmt)
+    info_str = f"ประเภท: {m['gender']}   รอบ: {m['round_name']}   สาย: {m['group_name']}   คู่ที่: {m['match_no']}   ทีม: {m['team_a']}   กับ: {m['team_b']}"
+    ws.merge_range('A2:AE2', info_str, workbook.add_format({'align': 'center', 'font_size': 10}))
+
+    current_row = 3
+    # Sets 1-3
     for s_idx in range(3):
         max_cols = 30 if s_idx < 2 else 21
-        elements.append(Paragraph(f"<b>Set {s_idx + 1}</b>", styles['Normal']))
+        ws.write(current_row, 0, f"เซตที่ {s_idx + 1}", workbook.add_format({'bold': True, 'font_size': 10}))
+        current_row += 1
         
-        table_data = []
-        header_row = ["Team"] + [str(i) for i in range(1, max_cols + 1)]
-        table_data.append(header_row)
+        ws.write(current_row, 0, "ทีม", header_fmt)
+        ws.set_column(0, 0, 16) # ปรับความกว้างช่องชื่อทีม
+        for c in range(1, max_cols + 1):
+            ws.write(current_row, c, c, header_fmt)
+            ws.set_column(c, c, 3) # ปรับความกว้างช่องคะแนน
+        current_row += 1
 
         # Team A
-        row_a = [m['team_a']]
+        ws.write(current_row, 0, m['team_a'], border_fmt)
+        score_a = m['scores'][s_idx]['a']
         for c in range(1, max_cols + 1):
-            row_a.append("X" if c <= m['scores'][s_idx]['a'] else "")
-        table_data.append(row_a)
+            ws.write(current_row, c, "X" if c <= score_a else "", mark_fmt if c <= score_a else border_fmt)
+        current_row += 1
 
         # Team B
-        row_b = [m['team_b']]
+        ws.write(current_row, 0, m['team_b'], border_fmt)
+        score_b = m['scores'][s_idx]['b']
         for c in range(1, max_cols + 1):
-            row_b.append("X" if c <= m['scores'][s_idx]['b'] else "")
-        table_data.append(row_b)
+            ws.write(current_row, c, "X" if c <= score_b else "", mark_fmt if c <= score_b else border_fmt)
+        current_row += 2
 
-        col_widths = [60] + [16] * max_cols
-        t = Table(table_data, colWidths=col_widths)
-        t.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
-            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-            ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
-            ('FONTSIZE', (0,0), (-1,-1), 7),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ]))
-        elements.append(t)
-        elements.append(Spacer(1, 8))
+    # Timeout Table
+    ws.write(current_row, 0, "เวลานอก", workbook.add_format({'bold': True, 'font_size': 10}))
+    current_row += 1
+    
+    ws.write(current_row, 0, "ทีม", header_fmt)
+    ws.write(current_row, 1, "เซต 1 (ครั้ง 1)", header_fmt)
+    ws.write(current_row, 2, "เซต 1 (ครั้ง 2)", header_fmt)
+    ws.write(current_row, 3, "เซต 2 (ครั้ง 1)", header_fmt)
+    ws.write(current_row, 4, "เซต 2 (ครั้ง 2)", header_fmt)
+    ws.write(current_row, 5, "เซต 3 (ครั้ง 1)", header_fmt)
+    ws.write(current_row, 6, "เซต 3 (ครั้ง 2)", header_fmt)
+    current_row += 1
 
-    # Timeouts Table
-    elements.append(Paragraph("<b>Timeouts</b>", styles['Normal']))
-    to_data = [
-        ["Team", "Set 1 (T1)", "Set 1 (T2)", "Set 2 (T1)", "Set 2 (T2)", "Set 3 (T1)", "Set 3 (T2)"],
-        [m['team_a']] + ["O" if m['timeouts']['a'][s][t] else "" for s in range(3) for t in range(2)],
-        [m['team_b']] + ["O" if m['timeouts']['b'][s][t] else "" for s in range(3) for t in range(2)]
-    ]
-    t_to = Table(to_data, colWidths=[100, 60, 60, 60, 60, 60, 60])
-    t_to.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
-        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-        ('FONTSIZE', (0,0), (-1,-1), 8),
-    ]))
-    elements.append(t_to)
-    elements.append(Spacer(1, 15))
+    # Timeout Team A
+    ws.write(current_row, 0, m['team_a'], border_fmt)
+    col_idx = 1
+    for s in range(3):
+        for t in range(2):
+            val = "✓" if m['timeouts']['a'][s][t] else ""
+            ws.write(current_row, col_idx, val, border_fmt)
+            col_idx += 1
+    current_row += 1
 
-    # 4 Referees Signatures Table
-    ref_data = [
-        ["Ref 1: ....................................", "Ref 2: ...................................."],
-        ["Ref 3: ....................................", "Ref 4: ...................................."]
-    ]
-    t_ref = Table(ref_data, colWidths=[230, 230])
-    t_ref.setStyle(TableStyle([
-        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 10),
-        ('FONTSIZE', (0,0), (-1,-1), 9),
-    ]))
-    elements.append(t_ref)
+    # Timeout Team B
+    ws.write(current_row, 0, m['team_b'], border_fmt)
+    col_idx = 1
+    for s in range(3):
+        for t in range(2):
+            val = "✓" if m['timeouts']['b'][s][t] else ""
+            ws.write(current_row, col_idx, val, border_fmt)
+            col_idx += 1
+    current_row += 3
 
-    doc.build(elements)
-    buffer.seek(0)
-    return buffer.getvalue()
+    # Signatures (กรรมการ 4 คน)
+    ref_fmt = workbook.add_format({'font_size': 9, 'align': 'center'})
+    ws.merge_range(current_row, 0, current_row, 6, "ลงชื่อ..........................................................กรรมการ 1", ref_fmt)
+    ws.merge_range(current_row, 12, current_row, 18, "ลงชื่อ..........................................................กรรมการ 2", ref_fmt)
+    current_row += 2
+    ws.merge_range(current_row, 0, current_row, 6, "ลงชื่อ..........................................................กรรมการ 3", ref_fmt)
+    ws.merge_range(current_row, 12, current_row, 18, "ลงชื่อ..........................................................กรรมการ 4", ref_fmt)
+
+    workbook.close()
+    return output.getvalue()
 
 st.markdown("---")
 st.download_button(
-    label="📄 ดาวน์โหลดใบบันทึกคะแนน A4 (ไฟล์ PDF)",
-    data=generate_pdf_a4(),
-    file_name=f"ScoreSheet_{st.session_state.match_data['team_a']}_vs_{st.session_state.match_data['team_b']}.pdf",
-    mime="application/pdf",
+    label="📊 ดาวน์โหลดใบบันทึกคะแนน",
+    data=generate_a4_editable_excel(),
+    file_name=f"ScoreSheet_{st.session_state.match_data['team_a']}_vs_{st.session_state.match_data['team_b']}.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     use_container_width=True
 )
