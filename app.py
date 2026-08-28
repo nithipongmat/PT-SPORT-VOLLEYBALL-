@@ -321,7 +321,7 @@ court_html = f"""
                 <div class="player-card"><span class="pos-badge">3</span><br>{rot_top[2]}</div>
                 <div class="player-card"><span class="pos-badge">2</span><br>{rot_top[1]}</div>
             </div>
-        </div>
+        </div> <!-- <-- จุดที่เพิ่ม </div> ปิดฝั่งแดนบนตรงนี้ครับ -->
 
         <!-- NET LINE (เน็ตแนวนอน) -->
         <div class="net-line-horizontal"></div>
@@ -348,6 +348,7 @@ court_html = f"""
 </div>
 """
 st.markdown(court_html, unsafe_allow_html=True)
+
 
 # Controls
 rc1, rc2 = st.columns(2)
