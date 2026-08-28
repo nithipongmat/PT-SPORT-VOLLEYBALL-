@@ -305,7 +305,7 @@ rot_right = st.session_state.match_data[f'players_{right_team}']['court']
 left_name = st.session_state.match_data[f'team_{left_team}']
 right_name = st.session_state.match_data[f'team_{right_team}']
 
-# Render Court HTML (ตำแหน่งวอลเลย์บอลถูกต้องตามมาตรฐานสากล)
+# Render Court HTML (แก้ไขโครงสร้าง HTML ฝั่งขวาเรียบร้อย)
 court_html = f"""
 <div class="court-container">
     <div class="court-board">
@@ -314,13 +314,13 @@ court_html = f"""
             <div style="color: white; font-weight: bold; text-align: center; margin-bottom: 5px;">
                 {left_name}
             </div>
-            <!-- Back Row: Pos 5, 6, 1 (ท้ายสนาม) -->
+            <!-- Back Row: Pos 5, 6, 1 (3 คนแนวนอน) -->
             <div class="player-grid">
                 <div class="player-card"><span class="pos-badge pos-badge-back">5</span><br>{rot_left[4]}</div>
                 <div class="player-card"><span class="pos-badge pos-badge-back">6</span><br>{rot_left[5]}</div>
                 <div class="player-card"><span class="pos-badge pos-badge-back">1</span><br>{rot_left[0]}</div>
             </div>
-            <!-- Front Row: Pos 4, 3, 2 (หน้าเน็ต) -->
+            <!-- Front Row: Pos 4, 3, 2 (3 คนแนวนอน) -->
             <div class="player-grid" style="margin-top: 15px;">
                 <div class="player-card"><span class="pos-badge">4</span><br>{rot_left[3]}</div>
                 <div class="player-card"><span class="pos-badge">3</span><br>{rot_left[2]}</div>
@@ -336,13 +336,13 @@ court_html = f"""
             <div style="color: white; font-weight: bold; text-align: center; margin-bottom: 5px;">
                 {right_name}
             </div>
-            <!-- Front Row: Pos 2, 3, 4 (หน้าเน็ต) -->
+            <!-- Front Row: Pos 2, 3, 4 (3 คนแนวนอน) -->
             <div class="player-grid">
                 <div class="player-card"><span class="pos-badge">2</span><br>{rot_right[1]}</div>
                 <div class="player-card"><span class="pos-badge">3</span><br>{rot_right[2]}</div>
                 <div class="player-card"><span class="pos-badge">4</span><br>{rot_right[3]}</div>
             </div>
-            <!-- Back Row: Pos 1, 6, 5 (ท้ายสนาม) -->
+            <!-- Back Row: Pos 1, 6, 5 (3 คนแนวนอน) -->
             <div class="player-grid" style="margin-top: 15px;">
                 <div class="player-card"><span class="pos-badge pos-badge-back">1</span><br>{rot_right[0]}</div>
                 <div class="player-card"><span class="pos-badge pos-badge-back">6</span><br>{rot_right[5]}</div>
@@ -352,6 +352,7 @@ court_html = f"""
     </div>
 </div>
 """
+
 st.markdown(court_html, unsafe_allow_html=True)
 
 # Controls
