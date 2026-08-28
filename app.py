@@ -3,6 +3,11 @@ import pandas as pd
 import time
 import copy
 from io import BytesIO
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+from reportlab.pdfgen import canvas
 
 st.set_page_config(page_title="PT SPORT DAY 2026 - Scorekeeper Pro", layout="wide")
 
@@ -12,7 +17,7 @@ DEFAULT_COURT_B = ['ผู้เล่น B1 (4)', 'ผู้เล่น B2 (3)
 # --- 1. INITIALIZE SESSION STATE ---
 if 'match_data' not in st.session_state:
     st.session_state.match_data = {
-        'gender': 'ชาย',
+        'gender': 'ประสม',
         'round_name': '',
         'group_name': '',
         'match_no': '',
@@ -66,7 +71,7 @@ def add_score(team):
 with st.sidebar:
     st.header("⚙️ ตั้งค่าการแข่งขัน & ผู้เล่น")
     
-    st.session_state.match_data['gender'] = st.radio("ประเภท", ["ชาย", "หญิง"], horizontal=True)
+    st.session_state.match_data['gender'] = st.radio("ประเภท", ["ชาย", "หญิง", "ประสม"], horizontal=True)
     st.session_state.match_data['round_name'] = st.text_input("รอบ", st.session_state.match_data['round_name'])
     st.session_state.match_data['group_name'] = st.text_input("สาย", st.session_state.match_data['group_name'])
     st.session_state.match_data['match_no'] = st.text_input("คู่ที่", st.session_state.match_data['match_no'])
@@ -108,7 +113,6 @@ with st.sidebar:
 # --- 3. MAIN SCOREBOARD ---
 curr_set = st.session_state.match_data['current_set']
 
-# ปุ่ม Undo ฉุกเฉินด้านบน
 ctrl_c1, ctrl_c2 = st.columns([2, 1])
 with ctrl_c1:
     st.subheader(f"🏆 การแข่งขันเซตที่ {curr_set + 1} / 3")
@@ -119,7 +123,7 @@ with ctrl_c2:
 
 col1, col2 = st.columns(2)
 
-# --- TEAM A ---
+# TEAM A
 with col1:
     server_badge = " 🟢 (เสิร์ฟ)" if st.session_state.match_data['server'] == 'a' else ""
     st.header(f"{st.session_state.match_data['team_a']}{server_badge}")
@@ -156,7 +160,7 @@ with col1:
             st.session_state.match_data['players_a']['court'] = list(DEFAULT_COURT_A)
             st.rerun()
 
-# --- TEAM B ---
+# TEAM B
 with col2:
     server_badge = " 🟢 (เสิร์ฟ)" if st.session_state.match_data['server'] == 'b' else ""
     st.header(f"{st.session_state.match_data['team_b']}{server_badge}")
@@ -235,102 +239,97 @@ if st.session_state.get('start_timer', False):
     timer_placeholder.success("🔔 หมดเวลาการขอเวลานอก!")
     st.session_state.start_timer = False
 
-# --- 5. EXPORT OFFICIAL SCORESHEET EXCEL ---
-def generate_official_excel():
-    output = BytesIO()
-    workbook = pd.ExcelWriter(output, engine='xlsxwriter')
-    wb = workbook.book
-    ws = wb.add_worksheet('ใบบันทึกคะแนน')
-
-    # Styles
-    title_fmt = wb.add_format({'bold': True, 'font_size': 16, 'align': 'center'})
-    header_fmt = wb.add_format({'bold': True, 'font_size': 11, 'align': 'center', 'border': 1})
-    border_fmt = wb.add_format({'border': 1, 'align': 'center'})
-    mark_fmt = wb.add_format({'border': 1, 'align': 'center', 'bg_color': '#4CAF50', 'font_color': 'white', 'bold': True})
-
-    # Header Section
-    ws.merge_range('A1:AE1', 'ใบบันทึกคะแนนวอลเลย์บอล', title_fmt)
+# --- 5. EXPORT PDF SCORESHEET (A4 FORM) ---
+def generate_pdf_a4():
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=20, leftMargin=20, topMargin=20, bottomMargin=20)
+    elements = []
+    
     m = st.session_state.match_data
-    info_str = f"ประเภท: {m['gender']}   รอบ: {m['round_name']}   สาย: {m['group_name']}   คู่ที่: {m['match_no']}   ทีม: {m['team_a']}   กับ: {m['team_b']}"
-    ws.merge_range('A2:AE2', info_str, wb.add_format({'align': 'center', 'font_size': 11}))
+    styles = getSampleStyleSheet()
+    
+    title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=14, alignment=1, spaceAfter=8)
+    sub_style = ParagraphStyle('SubStyle', parent=styles['Normal'], fontName='Helvetica', fontSize=9, alignment=1, spaceAfter=12)
+    
+    # Title & Header
+    elements.append(Paragraph("Volleyball Score Sheet", title_style))
+    header_text = f"Type: {m['gender']} | Round: {m['round_name']} | Group: {m['group_name']} | Match No: {m['match_no']} | Team 1: {m['team_a']} vs Team 2: {m['team_b']}"
+    elements.append(Paragraph(header_text, sub_style))
 
-    current_row = 3
-    # Sets 1-3 Tables
+    # Sets Tables
     for s_idx in range(3):
         max_cols = 30 if s_idx < 2 else 21
-        ws.write(current_row, 0, f"เซตที่ {s_idx + 1}", wb.add_format({'bold': True}))
-        current_row += 1
+        elements.append(Paragraph(f"<b>Set {s_idx + 1}</b>", styles['Normal']))
         
-        ws.write(current_row, 0, "ทีม", header_fmt)
+        table_data = []
+        header_row = ["Team"] + [str(i) for i in range(1, max_cols + 1)]
+        table_data.append(header_row)
+
+        # Team A
+        row_a = [m['team_a']]
         for c in range(1, max_cols + 1):
-            ws.write(current_row, c, c, header_fmt)
-        current_row += 1
+            row_a.append("X" if c <= m['scores'][s_idx]['a'] else "")
+        table_data.append(row_a)
 
-        # Team A Row
-        ws.write(current_row, 0, m['team_a'], border_fmt)
-        score_a = m['scores'][s_idx]['a']
+        # Team B
+        row_b = [m['team_b']]
         for c in range(1, max_cols + 1):
-            if c <= score_a:
-                ws.write(current_row, c, "X", mark_fmt)
-            else:
-                ws.write(current_row, c, "", border_fmt)
-        current_row += 1
+            row_b.append("X" if c <= m['scores'][s_idx]['b'] else "")
+        table_data.append(row_b)
 
-        # Team B Row
-        ws.write(current_row, 0, m['team_b'], border_fmt)
-        score_b = m['scores'][s_idx]['b']
-        for c in range(1, max_cols + 1):
-            if c <= score_b:
-                ws.write(current_row, c, "X", mark_fmt)
-            else:
-                ws.write(current_row, c, "", border_fmt)
-        current_row += 2
+        col_widths = [60] + [16] * max_cols
+        t = Table(table_data, colWidths=col_widths)
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
+            ('FONTSIZE', (0,0), (-1,-1), 7),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ]))
+        elements.append(t)
+        elements.append(Spacer(1, 8))
 
-    # Timeout Table
-    ws.write(current_row, 0, "เวลานอก", wb.add_format({'bold': True}))
-    current_row += 1
-    ws.write(current_row, 0, "ทีม", header_fmt)
-    ws.write(current_row, 1, "เซตที่ 1 (ครั้ง 1)", header_fmt)
-    ws.write(current_row, 2, "เซตที่ 1 (ครั้ง 2)", header_fmt)
-    ws.write(current_row, 3, "เซตที่ 2 (ครั้ง 1)", header_fmt)
-    ws.write(current_row, 4, "เซตที่ 2 (ครั้ง 2)", header_fmt)
-    ws.write(current_row, 5, "เซตที่ 3 (ครั้ง 1)", header_fmt)
-    ws.write(current_row, 6, "เซตที่ 3 (ครั้ง 2)", header_fmt)
-    current_row += 1
+    # Timeouts Table
+    elements.append(Paragraph("<b>Timeouts</b>", styles['Normal']))
+    to_data = [
+        ["Team", "Set 1 (T1)", "Set 1 (T2)", "Set 2 (T1)", "Set 2 (T2)", "Set 3 (T1)", "Set 3 (T2)"],
+        [m['team_a']] + ["O" if m['timeouts']['a'][s][t] else "" for s in range(3) for t in range(2)],
+        [m['team_b']] + ["O" if m['timeouts']['b'][s][t] else "" for s in range(3) for t in range(2)]
+    ]
+    t_to = Table(to_data, colWidths=[100, 60, 60, 60, 60, 60, 60])
+    t_to.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+        ('FONTSIZE', (0,0), (-1,-1), 8),
+    ]))
+    elements.append(t_to)
+    elements.append(Spacer(1, 15))
 
-    # Timeout Team A
-    ws.write(current_row, 0, m['team_a'], border_fmt)
-    col_idx = 1
-    for s in range(3):
-        for t in range(2):
-            val = "✓" if m['timeouts']['a'][s][t] else ""
-            ws.write(current_row, col_idx, val, border_fmt)
-            col_idx += 1
-    current_row += 1
+    # 4 Referees Signatures Table
+    ref_data = [
+        ["Ref 1: ....................................", "Ref 2: ...................................."],
+        ["Ref 3: ....................................", "Ref 4: ...................................."]
+    ]
+    t_ref = Table(ref_data, colWidths=[230, 230])
+    t_ref.setStyle(TableStyle([
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 10),
+        ('FONTSIZE', (0,0), (-1,-1), 9),
+    ]))
+    elements.append(t_ref)
 
-    # Timeout Team B
-    ws.write(current_row, 0, m['team_b'], border_fmt)
-    col_idx = 1
-    for s in range(3):
-        for t in range(2):
-            val = "✓" if m['timeouts']['b'][s][t] else ""
-            ws.write(current_row, col_idx, val, border_fmt)
-            col_idx += 1
-    current_row += 3
-
-    # Signatures
-    ws.write(current_row, 0, "ลงชื่อ.........................................กรรมการ", wb.add_format({'font_size': 10}))
-    ws.write(current_row, 3, "ลงชื่อ.........................................กรรมการ", wb.add_format({'font_size': 10}))
-    ws.write(current_row, 6, "ลงชื่อ.........................................กรรมการ", wb.add_format({'font_size': 10}))
-
-    workbook.close()
-    return output.getvalue()
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer.getvalue()
 
 st.markdown("---")
 st.download_button(
-    label="📥 ดาวน์โหลดใบบันทึกคะแนนทางการ (ตรงตามแบบฟอร์ม .xlsx)",
-    data=generate_official_excel(),
-    file_name=f"ScoreSheet_{st.session_state.match_data['team_a']}_vs_{st.session_state.match_data['team_b']}.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    label="📄 ดาวน์โหลดใบบันทึกคะแนน A4 (ไฟล์ PDF)",
+    data=generate_pdf_a4(),
+    file_name=f"ScoreSheet_{st.session_state.match_data['team_a']}_vs_{st.session_state.match_data['team_b']}.pdf",
+    mime="application/pdf",
     use_container_width=True
 )
