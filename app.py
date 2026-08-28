@@ -251,7 +251,7 @@ with col2:
                 minus_score(t_key)
                 st.rerun()
 
-# --- 4. HORIZONTAL COURT DISPLAY (IFRAME SAFE RENDER) ---
+# --- 4. HORIZONTAL COURT DISPLAY (FIT & COMPACT) ---
 c_title_col, c_btn_col = st.columns([3, 1])
 with c_title_col:
     st.markdown("### 🏟️ ผังตำแหน่งผู้เล่นในสนาม (Volleyball Court)")
@@ -271,6 +271,9 @@ court_html_code = f"""
 <html>
 <head>
 <style>
+* {{
+    box-sizing: border-box;
+}}
 body {{
     margin: 0;
     padding: 0;
@@ -279,75 +282,76 @@ body {{
 }}
 .court-container {{
     background: #0f172a;
-    padding: 15px;
+    padding: 10px;
     border-radius: 12px;
     display: flex;
     justify-content: center;
-    box-sizing: border-box;
+    width: 100%;
 }}
 .court-board-horizontal {{
     display: flex;
     flex-direction: row;
     background: linear-gradient(90deg, #d35400 0%, #e67e22 100%);
-    border: 4px solid #ffffff;
+    border: 3px solid #ffffff;
     border-radius: 8px;
     width: 100%;
-    box-sizing: border-box;
 }}
 .court-side-horizontal {{
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 10px;
+    padding: 8px;
     justify-content: center;
 }}
 .team-label-banner {{
     color: white;
     font-weight: bold;
     text-align: center;
-    font-size: 1.1rem;
-    margin-bottom: 8px;
+    font-size: 1rem;
+    margin-bottom: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }}
 .net-line-vertical {{
-    width: 8px;
+    width: 6px;
     background: repeating-linear-gradient(0deg, #ffffff, #ffffff 10px, #000000 10px, #000000 20px);
     z-index: 10;
 }}
 .court-grid-left, .court-grid-right {{
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    gap: 6px;
 }}
 .col-back, .col-front {{
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
 }}
 .player-card {{
     background: rgba(255, 255, 255, 0.95);
     border-radius: 6px;
-    padding: 8px 4px;
+    padding: 4px;
     text-align: center;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     font-weight: bold;
     color: #1e293b;
-    min-height: 50px;
+    height: 46px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }}
 .pos-badge {{
     display: inline-block;
-    width: 20px;
-    height: 20px;
-    line-height: 20px;
+    width: 18px;
+    height: 18px;
+    line-height: 18px;
     border-radius: 50%;
     background-color: #2563eb;
     color: white;
-    font-size: 0.75rem;
-    margin-bottom: 3px;
+    font-size: 0.7rem;
+    margin-bottom: 2px;
 }}
 .pos-badge-back {{
     background-color: #ea580c;
@@ -396,7 +400,7 @@ body {{
 </html>
 """
 
-components.html(court_html_code, height=270)
+components.html(court_html_code, height=230)
 
 # Rotation Controls
 rc1, rc2 = st.columns(2)
