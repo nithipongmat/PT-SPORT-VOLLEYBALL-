@@ -4,121 +4,77 @@ import time
 import copy
 from io import BytesIO
 import xlsxwriter
+import textwrap
 
 st.set_page_config(page_title="PT SPORT 2026 VOLLEYBALL SCORE", layout="wide", initial_sidebar_state="expanded")
 
 DEFAULT_COURT_A = ['ผู้เล่น A1 (4)', 'ผู้เล่น A2 (3)', 'ผู้เล่น A3 (2)', 'ผู้เล่น A4 (1)', 'ผู้เล่น A5 (6)', 'ผู้เล่น A6 (5)']
 DEFAULT_COURT_B = ['ผู้เล่น B1 (4)', 'ผู้เล่น B2 (3)', 'ผู้เล่น B3 (2)', 'ผู้เล่น B4 (1)', 'ผู้เล่น B5 (6)', 'ผู้เล่น B6 (5)']
 
-# --- Custom Styling & CSS FIX ---
+# --- Custom Styling & CSS (Pure CSS) ---
 st.markdown("""
 <style>
-/* Base Setup */
-.main { background-color: #f4f6f9; }
-
-/* Score Display Card */
-.score-card {
-    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-    border-radius: 16px;
-    padding: 20px;
-    text-align: center;
-    color: white;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
-    margin-bottom: 15px;
-    border: 1px solid rgba(255,255,255,0.1);
-}
-.score-team-title {
-    font-size: 1.4rem;
-    font-weight: 700;
-    margin-bottom: 5px;
-    letter-spacing: 0.5px;
-}
-.score-number {
-    font-size: 5rem;
-    font-weight: 900;
-    line-height: 1;
-    text-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    margin: 10px 0;
-}
-.serve-indicator {
-    display: inline-block;
-    background-color: #10b981;
-    color: white;
-    padding: 2px 10px;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: bold;
-}
-
-/* Court Graphic Setup */
 .court-container {
     background: #0f172a;
-    padding: 20px;
-    border-radius: 16px;
-    box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+    padding: 15px;
+    border-radius: 12px;
     display: flex;
     justify-content: center;
 }
 .court-board {
     display: flex;
     flex-direction: column;
-    background-color: #e056fd;
     background: linear-gradient(180deg, #d35400 0%, #e67e22 100%);
-    border: 5px solid #ffffff;
+    border: 4px solid #ffffff;
     border-radius: 8px;
     width: 100%;
-    max-width: 520px;
+    max-width: 500px;
     overflow: hidden;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
 }
 .court-side {
     display: flex;
     flex-direction: column;
-    padding: 12px;
+    padding: 10px;
 }
 .team-label-banner {
     color: white;
-    font-weight: 800;
+    font-weight: bold;
     text-align: center;
     font-size: 1.1rem;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-    margin: 6px 0;
+    margin: 5px 0;
 }
 .net-line-horizontal {
-    height: 10px;
-    background: repeating-linear-gradient(90deg, #ffffff, #ffffff 10px, #333333 10px, #333333 20px);
-    box-shadow: 0 0 10px rgba(0,0,0,0.6);
+    height: 8px;
+    background: repeating-linear-gradient(90deg, #ffffff, #ffffff 10px, #000000 10px, #000000 20px);
     z-index: 10;
 }
 .player-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
+    gap: 6px;
 }
-.player-grid-top { margin-top: 8px; }
-.player-grid-bottom { margin-bottom: 8px; }
+.grid-top { margin-top: 6px; }
+.grid-bottom { margin-bottom: 6px; }
 
 .player-card {
     background: rgba(255, 255, 255, 0.95);
-    border-radius: 8px;
-    padding: 10px 4px;
+    border-radius: 6px;
+    padding: 8px 2px;
     text-align: center;
-    box-shadow: 0 3px 6px rgba(0,0,0,0.2);
     font-size: 0.85rem;
-    font-weight: 700;
+    font-weight: bold;
     color: #1e293b;
 }
 .pos-badge {
     display: inline-block;
-    width: 22px;
-    height: 22px;
-    line-height: 22px;
+    width: 20px;
+    height: 20px;
+    line-height: 20px;
     border-radius: 50%;
     background-color: #2563eb;
     color: white;
     font-size: 0.75rem;
-    font-weight: bold;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
 }
 .pos-badge-back {
     background-color: #ea580c;
@@ -283,7 +239,7 @@ if match_winner:
 curr_set = st.session_state.match_data['current_set']
 curr_target = st.session_state.match_data['target_score_reg'] if curr_set < 2 else st.session_state.match_data['target_score_tie']
 
-st.markdown("### 📌 สลับ/เลือกเซตที่กำลังบันทึกคะแนน")
+st.markdown("### 📌 เลือกเซตบันทึกคะแนน")
 selected_set = st.radio(
     "เลือกเซต:",
     options=[0, 1, 2],
@@ -310,47 +266,35 @@ bottom_team = 'a' if is_swapped else 'b'
 
 col1, col2 = st.columns(2)
 
-# TOP TEAM SCORE DISPLAY
+# TOP TEAM SCORE DISPLAY (Native Streamlit elements - Safe from rendering bugs)
 with col1:
     t_key = top_team
     t_name = st.session_state.match_data[f'team_{t_key}']
     is_serving = st.session_state.match_data['server'] == t_key
-    serve_html = '<div class="serve-indicator">🟢 ได้เสิร์ฟ</div>' if is_serving else ''
-    score = st.session_state.match_data['scores'][curr_set][t_key]
-    color_style = "color: #f43f5e;" if t_key == 'b' else "color: #3b82f6;"
-
-    st.markdown(f"""
-    <div class="score-card">
-        <div class="score-team-title">{t_name} (แดนบน)</div>
-        {serve_html}
-        <div class="score-number" style="{color_style}">{score}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    if st.button(f"➕ ได้คะแนน ({t_name})", use_container_width=True, type="primary", key="add_top", disabled=bool(match_winner)):
-        add_score(t_key)
-        st.rerun()
+    serve_badge = " 🟢 (ได้เสิร์ฟ)" if is_serving else ""
+    
+    with st.container(border=True):
+        st.markdown(f"### {t_name} (แดนบน){serve_badge}")
+        score = st.session_state.match_data['scores'][curr_set][t_key]
+        st.markdown(f"<h1 style='text-align: center; font-size: 80px; margin: 0;'>{score}</h1>", unsafe_allow_html=True)
+        if st.button(f"➕ ได้คะแนน ({t_name})", use_container_width=True, type="primary", key="add_top", disabled=bool(match_winner)):
+            add_score(t_key)
+            st.rerun()
 
 # BOTTOM TEAM SCORE DISPLAY
 with col2:
     t_key = bottom_team
     t_name = st.session_state.match_data[f'team_{t_key}']
     is_serving = st.session_state.match_data['server'] == t_key
-    serve_html = '<div class="serve-indicator">🟢 ได้เสิร์ฟ</div>' if is_serving else ''
-    score = st.session_state.match_data['scores'][curr_set][t_key]
-    color_style = "color: #f43f5e;" if t_key == 'b' else "color: #3b82f6;"
-
-    st.markdown(f"""
-    <div class="score-card">
-        <div class="score-team-title">{t_name} (แดนล่าง)</div>
-        {serve_html}
-        <div class="score-number" style="{color_style}">{score}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    if st.button(f"➕ ได้คะแนน ({t_name})", use_container_width=True, type="primary", key="add_bottom", disabled=bool(match_winner)):
-        add_score(t_key)
-        st.rerun()
+    serve_badge = " 🟢 (ได้เสิร์ฟ)" if is_serving else ""
+    
+    with st.container(border=True):
+        st.markdown(f"### {t_name} (แดนล่าง){serve_badge}")
+        score = st.session_state.match_data['scores'][curr_set][t_key]
+        st.markdown(f"<h1 style='text-align: center; font-size: 80px; margin: 0;'>{score}</h1>", unsafe_allow_html=True)
+        if st.button(f"➕ ได้คะแนน ({t_name})", use_container_width=True, type="primary", key="add_bottom", disabled=bool(match_winner)):
+            add_score(t_key)
+            st.rerun()
 
 # --- VISUAL VOLLEYBALL COURT DISPLAY ---
 c_title_col, c_btn_col = st.columns([3, 1])
@@ -367,8 +311,8 @@ rot_bottom = st.session_state.match_data[f'players_{bottom_team}']['court']
 top_name = st.session_state.match_data[f'team_{top_team}']
 bottom_name = st.session_state.match_data[f'team_{bottom_team}']
 
-# CLEAN HTML COURT RENDER (No inline style bugs)
-court_html = f"""
+# Safe Court HTML using dedent to avoid Streamlit code-block parsing error
+raw_court_html = f"""
 <div class="court-container">
     <div class="court-board">
         <div class="court-side">
@@ -378,17 +322,15 @@ court_html = f"""
                 <div class="player-card"><span class="pos-badge pos-badge-back">6</span><br>{rot_top[5]}</div>
                 <div class="player-card"><span class="pos-badge pos-badge-back">1</span><br>{rot_top[0]}</div>
             </div>
-            <div class="player-grid player-grid-top">
+            <div class="player-grid grid-top">
                 <div class="player-card"><span class="pos-badge">4</span><br>{rot_top[3]}</div>
                 <div class="player-card"><span class="pos-badge">3</span><br>{rot_top[2]}</div>
                 <div class="player-card"><span class="pos-badge">2</span><br>{rot_top[1]}</div>
             </div>
         </div>
-
         <div class="net-line-horizontal"></div>
-
         <div class="court-side">
-            <div class="player-grid player-grid-bottom">
+            <div class="player-grid grid-bottom">
                 <div class="player-card"><span class="pos-badge">2</span><br>{rot_bottom[1]}</div>
                 <div class="player-card"><span class="pos-badge">3</span><br>{rot_bottom[2]}</div>
                 <div class="player-card"><span class="pos-badge">4</span><br>{rot_bottom[3]}</div>
@@ -403,7 +345,7 @@ court_html = f"""
     </div>
 </div>
 """
-st.markdown(court_html, unsafe_allow_html=True)
+st.markdown(textwrap.dedent(raw_court_html), unsafe_allow_html=True)
 
 # Controls
 rc1, rc2 = st.columns(2)
