@@ -1,102 +1,15 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import time
 import copy
 from io import BytesIO
 import xlsxwriter
-import textwrap
 
 st.set_page_config(page_title="PT SPORT 2026 VOLLEYBALL SCORE", layout="wide", initial_sidebar_state="expanded")
 
 DEFAULT_COURT_A = ['ผู้เล่น A1', 'ผู้เล่น A2', 'ผู้เล่น A3', 'ผู้เล่น A4', 'ผู้เล่น A5', 'ผู้เล่น A6']
 DEFAULT_COURT_B = ['ผู้เล่น B1', 'ผู้เล่น B2', 'ผู้เล่น B3', 'ผู้เล่น B4', 'ผู้เล่น B5', 'ผู้เล่น B6']
-
-# --- Custom Styling & CSS (Horizontal Court) ---
-st.markdown("""
-<style>
-.court-container {
-    background: #0f172a;
-    padding: 15px;
-    border-radius: 12px;
-    display: flex;
-    justify-content: center;
-}
-.court-board-horizontal {
-    display: flex;
-    flex-direction: row;
-    background: linear-gradient(90deg, #d35400 0%, #e67e22 100%);
-    border: 4px solid #ffffff;
-    border-radius: 8px;
-    width: 100%;
-    max-width: 900px;
-    overflow: hidden;
-    position: relative;
-}
-.court-side-horizontal {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    padding: 10px;
-    justify-content: center;
-}
-.team-label-banner {
-    color: white;
-    font-weight: bold;
-    text-align: center;
-    font-size: 1.1rem;
-    margin-bottom: 8px;
-}
-.net-line-vertical {
-    width: 8px;
-    background: repeating-linear-gradient(0deg, #ffffff, #ffffff 10px, #000000 10px, #000000 20px);
-    z-index: 10;
-}
-.court-grid-left {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-}
-.court-grid-right {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-}
-.col-back, .col-front {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.player-card {
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 6px;
-    padding: 10px 4px;
-    text-align: center;
-    font-size: 0.85rem;
-    font-weight: bold;
-    color: #1e293b;
-    min-height: 55px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-}
-.pos-badge {
-    display: inline-block;
-    width: 20px;
-    height: 20px;
-    line-height: 20px;
-    border-radius: 50%;
-    background-color: #2563eb;
-    color: white;
-    font-size: 0.75rem;
-    margin-bottom: 3px;
-}
-.pos-badge-back {
-    background-color: #ea580c;
-}
-</style>
-""", unsafe_allow_html=True)
 
 # --- 1. INITIALIZE SESSION STATE ---
 if 'match_data' not in st.session_state:
@@ -145,12 +58,10 @@ def undo_last_action():
         st.warning("ไม่มีประวัติให้ย้อนกลับ")
 
 def rotate_team_cw(team_key):
-    """หมุนตามเข็มนาฬิกา"""
     r = st.session_state.match_data[f'players_{team_key}']['court']
     st.session_state.match_data[f'players_{team_key}']['court'] = [r[-1]] + r[:-1]
 
 def rotate_team_ccw(team_key):
-    """หมุนย้อนกลับ"""
     r = st.session_state.match_data[f'players_{team_key}']['court']
     st.session_state.match_data[f'players_{team_key}']['court'] = r[1:] + [r[0]]
 
@@ -164,28 +75,21 @@ def check_set_winner(sa, sb, target):
 
 def calculate_sets_won():
     m = st.session_state.match_data
-    sets_a = 0
-    sets_b = 0
+    sets_a, sets_b = 0, 0
     for i in range(3):
         target = m['target_score_reg'] if i < 2 else m['target_score_tie']
         winner = check_set_winner(m['scores'][i]['a'], m['scores'][i]['b'], target)
-        if winner == 'a':
-            sets_a += 1
-        elif winner == 'b':
-            sets_b += 1
+        if winner == 'a': sets_a += 1
+        elif winner == 'b': sets_b += 1
     return sets_a, sets_b
 
 sets_won_a, sets_won_b = calculate_sets_won()
 match_winner = None
-if sets_won_a >= 2:
-    match_winner = st.session_state.match_data['team_a']
-elif sets_won_b >= 2:
-    match_winner = st.session_state.match_data['team_b']
+if sets_won_a >= 2: match_winner = st.session_state.match_data['team_a']
+elif sets_won_b >= 2: match_winner = st.session_state.match_data['team_b']
 
 def add_score(team):
-    if match_winner:
-        st.warning("การแข่งขันจบลงแล้ว ไม่สามารถเพิ่มคะแนนได้")
-        return
+    if match_winner: return
     save_history()
     curr_set = st.session_state.match_data['current_set']
     st.session_state.match_data['scores'][curr_set][team] += 1
@@ -210,7 +114,7 @@ def minus_score(team):
         save_history()
         st.session_state.match_data['scores'][curr_set][team] -= 1
 
-# --- 2. SIDEBAR: MATCH INFO & PLAYERS ---
+# --- 2. SIDEBAR ---
 with st.sidebar:
     st.header("⚙️ ตั้งค่าการแข่งขัน")
     st.session_state.match_data['gender'] = st.radio("ประเภท", ["ชาย", "หญิง", "ผสม"], horizontal=True)
@@ -220,8 +124,8 @@ with st.sidebar:
     
     st.markdown("---")
     st.subheader("🎯 เกณฑ์คะแนน")
-    st.session_state.match_data['target_score_reg'] = st.number_input("เซตปกติ (เซต 1-2)", min_value=1, value=st.session_state.match_data['target_score_reg'])
-    st.session_state.match_data['target_score_tie'] = st.number_input("เซตตัดสิน (เซต 3)", min_value=1, value=st.session_state.match_data['target_score_tie'])
+    st.session_state.match_data['target_score_reg'] = st.number_input("เซตปกติ", min_value=1, value=st.session_state.match_data['target_score_reg'])
+    st.session_state.match_data['target_score_tie'] = st.number_input("เซตตัดสิน", min_value=1, value=st.session_state.match_data['target_score_tie'])
     
     st.markdown("---")
     st.subheader("👥 ชื่อทีม")
@@ -258,12 +162,11 @@ with st.sidebar:
         st.session_state.history = []
         st.rerun()
 
-# --- WINNER BANNER ---
 if match_winner:
     st.balloons()
     st.success(f"🎉 **การแข่งขันจบลงแล้ว! ผู้ชนะคือ: {match_winner}** (ชนะ {sets_won_a} - {sets_won_b} เซต)")
 
-# --- 3. SET SELECTOR & MAIN SCOREBOARD ---
+# --- 3. SCOREBOARD ---
 curr_set = st.session_state.match_data['current_set']
 curr_target = st.session_state.match_data['target_score_reg'] if curr_set < 2 else st.session_state.match_data['target_score_tie']
 
@@ -294,7 +197,7 @@ right_team = 'a' if is_swapped else 'b'
 
 col1, col2 = st.columns(2)
 
-# LEFT TEAM SCORE DISPLAY
+# LEFT TEAM SCORE
 with col1:
     t_key = left_team
     t_name = st.session_state.match_data[f'team_{t_key}']
@@ -321,7 +224,7 @@ with col1:
                 minus_score(t_key)
                 st.rerun()
 
-# RIGHT TEAM SCORE DISPLAY
+# RIGHT TEAM SCORE
 with col2:
     t_key = right_team
     t_name = st.session_state.match_data[f'team_{t_key}']
@@ -348,7 +251,7 @@ with col2:
                 minus_score(t_key)
                 st.rerun()
 
-# --- HORIZONTAL VOLLEYBALL COURT DISPLAY ---
+# --- 4. HORIZONTAL COURT DISPLAY (IFRAME SAFE RENDER) ---
 c_title_col, c_btn_col = st.columns([3, 1])
 with c_title_col:
     st.markdown("### 🏟️ ผังตำแหน่งผู้เล่นในสนาม (Volleyball Court)")
@@ -363,52 +266,139 @@ rot_right = st.session_state.match_data[f'players_{right_team}']['court']
 left_name = st.session_state.match_data[f'team_{left_team}']
 right_name = st.session_state.match_data[f'team_{right_team}']
 
-# Safe Court Horizontal HTML
-raw_court_html = f"""
+court_html_code = f"""
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body {{
+    margin: 0;
+    padding: 0;
+    font-family: sans-serif;
+    background-color: transparent;
+}}
+.court-container {{
+    background: #0f172a;
+    padding: 15px;
+    border-radius: 12px;
+    display: flex;
+    justify-content: center;
+    box-sizing: border-box;
+}}
+.court-board-horizontal {{
+    display: flex;
+    flex-direction: row;
+    background: linear-gradient(90deg, #d35400 0%, #e67e22 100%);
+    border: 4px solid #ffffff;
+    border-radius: 8px;
+    width: 100%;
+    box-sizing: border-box;
+}}
+.court-side-horizontal {{
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    justify-content: center;
+}}
+.team-label-banner {{
+    color: white;
+    font-weight: bold;
+    text-align: center;
+    font-size: 1.1rem;
+    margin-bottom: 8px;
+}}
+.net-line-vertical {{
+    width: 8px;
+    background: repeating-linear-gradient(0deg, #ffffff, #ffffff 10px, #000000 10px, #000000 20px);
+    z-index: 10;
+}}
+.court-grid-left, .court-grid-right {{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}}
+.col-back, .col-front {{
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}}
+.player-card {{
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 6px;
+    padding: 8px 4px;
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: bold;
+    color: #1e293b;
+    min-height: 50px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}}
+.pos-badge {{
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    line-height: 20px;
+    border-radius: 50%;
+    background-color: #2563eb;
+    color: white;
+    font-size: 0.75rem;
+    margin-bottom: 3px;
+}}
+.pos-badge-back {{
+    background-color: #ea580c;
+}}
+</style>
+</head>
+<body>
 <div class="court-container">
     <div class="court-board-horizontal">
-        <!-- LEFT SIDE TEAM -->
         <div class="court-side-horizontal">
             <div class="team-label-banner">{left_name}</div>
             <div class="court-grid-left">
                 <div class="col-back">
-                    <div class="player-card"><span class="pos-badge pos-badge-back">5</span><br>{rot_left[4]}</div>
-                    <div class="player-card"><span class="pos-badge pos-badge-back">6</span><br>{rot_left[5]}</div>
-                    <div class="player-card"><span class="pos-badge pos-badge-back">1</span><br>{rot_left[0]}</div>
+                    <div class="player-card"><span class="pos-badge pos-badge-back">5</span>{rot_left[4]}</div>
+                    <div class="player-card"><span class="pos-badge pos-badge-back">6</span>{rot_left[5]}</div>
+                    <div class="player-card"><span class="pos-badge pos-badge-back">1</span>{rot_left[0]}</div>
                 </div>
                 <div class="col-front">
-                    <div class="player-card"><span class="pos-badge">4</span><br>{rot_left[3]}</div>
-                    <div class="player-card"><span class="pos-badge">3</span><br>{rot_left[2]}</div>
-                    <div class="player-card"><span class="pos-badge">2</span><br>{rot_left[1]}</div>
+                    <div class="player-card"><span class="pos-badge">4</span>{rot_left[3]}</div>
+                    <div class="player-card"><span class="pos-badge">3</span>{rot_left[2]}</div>
+                    <div class="player-card"><span class="pos-badge">2</span>{rot_left[1]}</div>
                 </div>
             </div>
         </div>
         
-        <!-- VERTICAL NET LINE -->
         <div class="net-line-vertical"></div>
         
-        <!-- RIGHT SIDE TEAM -->
         <div class="court-side-horizontal">
             <div class="team-label-banner">{right_name}</div>
             <div class="court-grid-right">
                 <div class="col-front">
-                    <div class="player-card"><span class="pos-badge">2</span><br>{rot_right[1]}</div>
-                    <div class="player-card"><span class="pos-badge">3</span><br>{rot_right[2]}</div>
-                    <div class="player-card"><span class="pos-badge">4</span><br>{rot_right[3]}</div>
+                    <div class="player-card"><span class="pos-badge">2</span>{rot_right[1]}</div>
+                    <div class="player-card"><span class="pos-badge">3</span>{rot_right[2]}</div>
+                    <div class="player-card"><span class="pos-badge">4</span>{rot_right[3]}</div>
                 </div>
                 <div class="col-back">
-                    <div class="player-card"><span class="pos-badge pos-badge-back">1</span><br>{rot_right[0]}</div>
-                    <div class="player-card"><span class="pos-badge pos-badge-back">6</span><br>{rot_right[5]}</div>
-                    <div class="player-card"><span class="pos-badge pos-badge-back">5</span><br>{rot_right[4]}</div>
+                    <div class="player-card"><span class="pos-badge pos-badge-back">1</span>{rot_right[0]}</div>
+                    <div class="player-card"><span class="pos-badge pos-badge-back">6</span>{rot_right[5]}</div>
+                    <div class="player-card"><span class="pos-badge pos-badge-back">5</span>{rot_right[4]}</div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+</body>
+</html>
 """
-st.markdown(textwrap.dedent(raw_court_html), unsafe_allow_html=True)
 
-# Controls for Left and Right Teams
+components.html(court_html_code, height=270)
+
+# Rotation Controls
 rc1, rc2 = st.columns(2)
 with rc1:
     m1, m2, m3 = st.columns(3)
@@ -448,7 +438,7 @@ with rc2:
             st.session_state.match_data[f'players_{right_team}']['court'] = list(default)
             st.rerun()
 
-# --- 4. TIMEOUT & CONTROLS ---
+# --- 5. TIMEOUT CONTROLS ---
 st.markdown("---")
 st.write("### ⏱️ ขอเวลานอกและควบคุมเซต")
 c1, c2, c3 = st.columns(3)
@@ -491,12 +481,11 @@ if st.session_state.get('start_timer', False):
     timer_placeholder.success("🔔 หมดเวลาการขอเวลานอก!")
     st.session_state.start_timer = False
 
-# --- 5. EXPORT & SAVE MATCH HISTORY ---
+# --- 6. EXPORT EXCEL & HISTORY ---
 def generate_a4_editable_excel(m_data):
     output = BytesIO()
     workbook = xlsxwriter.Workbook(output, {'in_memory': True})
     ws = workbook.add_worksheet('ใบบันทึกคะแนน')
-
     ws.set_paper(9)
     ws.set_landscape()
     ws.fit_to_pages(1, 1)
@@ -524,21 +513,18 @@ def generate_a4_editable_excel(m_data):
             ws.set_column(c, c, 3)
         current_row += 1
 
-        # Team A
         ws.write(current_row, 0, m_data['team_a'], border_fmt)
         score_a = m_data['scores'][s_idx]['a']
         for c in range(1, max_cols + 1):
             ws.write(current_row, c, "X" if c <= score_a else "", mark_fmt if c <= score_a else border_fmt)
         current_row += 1
 
-        # Team B
         ws.write(current_row, 0, m_data['team_b'], border_fmt)
         score_b = m_data['scores'][s_idx]['b']
         for c in range(1, max_cols + 1):
             ws.write(current_row, c, "X" if c <= score_b else "", mark_fmt if c <= score_b else border_fmt)
         current_row += 2
 
-    # Timeout Table
     ws.write(current_row, 0, "เวลานอก", workbook.add_format({'bold': True, 'font_size': 10}))
     current_row += 1
     
@@ -551,7 +537,6 @@ def generate_a4_editable_excel(m_data):
     ws.write(current_row, 6, "เซต 3 (ครั้ง 2)", header_fmt)
     current_row += 1
 
-    # Timeout Team A
     ws.write(current_row, 0, m_data['team_a'], border_fmt)
     col_idx = 1
     for s in range(3):
@@ -561,7 +546,6 @@ def generate_a4_editable_excel(m_data):
             col_idx += 1
     current_row += 1
 
-    # Timeout Team B
     ws.write(current_row, 0, m_data['team_b'], border_fmt)
     col_idx = 1
     for s in range(3):
@@ -571,7 +555,6 @@ def generate_a4_editable_excel(m_data):
             col_idx += 1
     current_row += 3
 
-    # Signatures
     ref_fmt = workbook.add_format({'font_size': 9, 'align': 'center'})
     ws.merge_range(current_row, 0, current_row, 6, "ลงชื่อ..........................................................กรรมการ 1", ref_fmt)
     ws.merge_range(current_row, 12, current_row, 18, "ลงชื่อ..........................................................กรรมการ 2", ref_fmt)
@@ -592,7 +575,7 @@ with save_col:
         completed['sets_won_a'] = sets_won_a
         completed['sets_won_b'] = sets_won_b
         st.session_state.completed_matches.append(completed)
-        st.success("บันทึกผลการแข่งขันลงระบบย้อนหลังเรียบร้อย!")
+        st.success("บันทึกผลการแข่งขันเรียบร้อย!")
 
 with dl_col:
     st.download_button(
@@ -603,7 +586,6 @@ with dl_col:
         use_container_width=True
     )
 
-# --- 6. MATCH HISTORY & DELETE SECTION ---
 st.markdown("---")
 st.header("📜 ประวัติผลการแข่งขันย้อนหลัง")
 
@@ -621,12 +603,11 @@ if st.session_state.completed_matches:
         st.write(" ")
         if st.button("🗑️ ลบคู่นี้", type="secondary", use_container_width=True):
             st.session_state.completed_matches.pop(selected_match_idx)
-            st.success("ลบประวัติการแข่งขันคู่นี้เรียบร้อย!")
+            st.success("ลบประวัติคู่นี้เรียบร้อย!")
             st.rerun()
 
     if st.session_state.completed_matches:
         selected_m = st.session_state.completed_matches[selected_match_idx]
-        
         st.markdown(f"### 🏐 รายละเอียด: {selected_m['team_a']} VS {selected_m['team_b']}")
         st.write(f"**ประเภท:** {selected_m['gender']} | **รอบ:** {selected_m['round_name']} | **สาย:** {selected_m['group_name']} | **คู่ที่:** {selected_m['match_no']}")
         st.write(f"🏆 **ผู้ชนะ:** {selected_m['winner']} (ผลเซต {selected_m['sets_won_a']} - {selected_m['sets_won_b']})")
@@ -650,7 +631,7 @@ if st.session_state.completed_matches:
         with d2:
             if st.button("❌ ลบประวัติการแข่งขันทั้งหมด", type="primary", use_container_width=True):
                 st.session_state.completed_matches = []
-                st.success("ลบประวัติการแข่งขันทั้งหมดเรียบร้อย!")
+                st.success("ลบประวัติทั้งหมดเรียบร้อย!")
                 st.rerun()
 else:
     st.info("ยังไม่มีประวัติการแข่งขันที่บันทึกไว้")
