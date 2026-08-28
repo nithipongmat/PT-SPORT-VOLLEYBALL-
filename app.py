@@ -10,7 +10,7 @@ st.set_page_config(page_title="PT SPORT 2026 VOLLEYBALL SCORE", layout="wide")
 DEFAULT_COURT_A = ['ผู้เล่น A1 (4)', 'ผู้เล่น A2 (3)', 'ผู้เล่น A3 (2)', 'ผู้เล่น A4 (1)', 'ผู้เล่น A5 (6)', 'ผู้เล่น A6 (5)']
 DEFAULT_COURT_B = ['ผู้เล่น B1 (4)', 'ผู้เล่น B2 (3)', 'ผู้เล่น B3 (2)', 'ผู้เล่น B4 (1)', 'ผู้เล่น B5 (6)', 'ผู้เล่น B6 (5)']
 
-# --- Custom CSS (ผังสนามแนวตั้ง 2 แถวนอน x 3 แนวตั้ง ตามรูปวาด) ---
+# --- Custom CSS ---
 st.markdown("""
 <style>
 .court-container {
@@ -24,12 +24,12 @@ st.markdown("""
 }
 .court-board {
     display: flex;
-    flex-direction: column; /* จัดเป็นแนวตั้ง บน-ล่าง */
+    flex-direction: column;
     background-color: #d96432;
     border: 4px solid #ffffff;
     border-radius: 6px;
     width: 100%;
-    max-width: 500px; /* คุมขนาดสนามให้สมส่วน */
+    max-width: 500px;
     overflow: hidden;
 }
 .court-side {
@@ -45,7 +45,7 @@ st.markdown("""
 }
 .player-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr); /* 3 คอลัมน์แนวตั้ง */
+    grid-template-columns: repeat(3, 1fr);
     gap: 8px;
 }
 .player-card {
@@ -300,41 +300,34 @@ rot_bottom = st.session_state.match_data[f'players_{bottom_team}']['court']
 top_name = st.session_state.match_data[f'team_{top_team}']
 bottom_name = st.session_state.match_data[f'team_{bottom_team}']
 
-# Render Court HTML (ผังสนามแนวตั้ง แดนบน - แดนล่าง)
+# Render Court HTML
 court_html = f"""
 <div class="court-container">
     <div class="court-board">
-        <!-- TOP SIDE (แดนบน) -->
         <div class="court-side">
             <div style="color: white; font-weight: bold; text-align: center; margin-bottom: 8px;">
                 {top_name} (แดนบน)
             </div>
-            <!-- แถวหลัง (3 คน) -->
             <div class="player-grid">
                 <div class="player-card"><span class="pos-badge pos-badge-back">5</span><br>{rot_top[4]}</div>
                 <div class="player-card"><span class="pos-badge pos-badge-back">6</span><br>{rot_top[5]}</div>
                 <div class="player-card"><span class="pos-badge pos-badge-back">1</span><br>{rot_top[0]}</div>
             </div>
-            <!-- แถวหน้า (3 คน) -->
             <div class="player-grid" style="margin-top: 8px;">
                 <div class="player-card"><span class="pos-badge">4</span><br>{rot_top[3]}</div>
                 <div class="player-card"><span class="pos-badge">3</span><br>{rot_top[2]}</div>
                 <div class="player-card"><span class="pos-badge">2</span><br>{rot_top[1]}</div>
             </div>
-        </div> <!-- <-- จุดที่เพิ่ม </div> ปิดฝั่งแดนบนตรงนี้ครับ -->
+        </div>
 
-        <!-- NET LINE (เน็ตแนวนอน) -->
         <div class="net-line-horizontal"></div>
 
-        <!-- BOTTOM SIDE (แดนล่าง) -->
         <div class="court-side">
-            <!-- แถวหน้า (3 คน) -->
             <div class="player-grid" style="margin-bottom: 8px;">
                 <div class="player-card"><span class="pos-badge">2</span><br>{rot_bottom[1]}</div>
                 <div class="player-card"><span class="pos-badge">3</span><br>{rot_bottom[2]}</div>
                 <div class="player-card"><span class="pos-badge">4</span><br>{rot_bottom[3]}</div>
             </div>
-            <!-- แถวหลัง (3 คน) -->
             <div class="player-grid">
                 <div class="player-card"><span class="pos-badge pos-badge-back">1</span><br>{rot_bottom[0]}</div>
                 <div class="player-card"><span class="pos-badge pos-badge-back">6</span><br>{rot_bottom[5]}</div>
@@ -348,7 +341,6 @@ court_html = f"""
 </div>
 """
 st.markdown(court_html, unsafe_allow_html=True)
-
 
 # Controls
 rc1, rc2 = st.columns(2)
