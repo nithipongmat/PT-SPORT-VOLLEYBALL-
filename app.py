@@ -93,7 +93,7 @@ if 'match_data' not in st.session_state:
         'team_b': 'นักศึกษาชั้นปีที่ 2',
         'scores': [{'a': 0, 'b': 0}, {'a': 0, 'b': 0}, {'a': 0, 'b': 0}],
         'current_set': 0,
-        'swapped_sides': False, # ติดตามว่ามีการสลับฝั่งอยู่หรือไม่
+        'swapped_sides': False,
         'timeouts': {'a': [[False, False], [False, False], [False, False]], 
                      'b': [[False, False], [False, False], [False, False]]},
         'server': 'a',
@@ -178,7 +178,7 @@ def add_score(team):
         new_sets_a, new_sets_b = calculate_sets_won()
         if new_sets_a < 2 and new_sets_b < 2 and curr_set < 2:
             st.session_state.match_data['current_set'] += 1
-            toggle_sides() # สลับฝั่งสนามอัตโนมัติเมื่อจบเซต
+            toggle_sides()
 
 # --- 2. SIDEBAR: MATCH INFO & PLAYERS ---
 with st.sidebar:
@@ -258,7 +258,6 @@ with ctrl_c2:
         undo_last_action()
         st.rerun()
 
-# กำหนดฝั่งซ้าย/ขวาตามสถานะ swapped_sides
 is_swapped = st.session_state.match_data['swapped_sides']
 left_team = 'b' if is_swapped else 'a'
 right_team = 'a' if is_swapped else 'b'
@@ -306,7 +305,7 @@ rot_right = st.session_state.match_data[f'players_{right_team}']['court']
 left_name = st.session_state.match_data[f'team_{left_team}']
 right_name = st.session_state.match_data[f'team_{right_team}']
 
-# Render Court HTML Dynamic Side
+# Render Court HTML (จัดระเบียบ 4, 3, 2 ชิดเน็ต และ 5, 6, 1 ท้ายสนาม)
 court_html = f"""
 <div class="court-container">
     <div class="court-board">
@@ -315,17 +314,17 @@ court_html = f"""
             <div style="color: white; font-weight: bold; text-align: center; margin-bottom: 5px;">
                 {left_name}
             </div>
-            <!-- Front Row: Pos 4, 3, 2 (Near Net) -->
-            <div class="player-grid">
-                <div class="player-card"><span class="pos-badge">4</span><br>{rot_left[0]}</div>
-                <div class="player-card"><span class="pos-badge">3</span><br>{rot_left[1]}</div>
-                <div class="player-card"><span class="pos-badge">2</span><br>{rot_left[2]}</div>
-            </div>
-            <!-- Back Row: Pos 5, 6, 1 -->
+            <!-- Back Row: Pos 5, 6, 1 (ท้ายสนาม) -->
             <div class="player-grid">
                 <div class="player-card"><span class="pos-badge pos-badge-back">5</span><br>{rot_left[5]}</div>
                 <div class="player-card"><span class="pos-badge pos-badge-back">6</span><br>{rot_left[4]}</div>
                 <div class="player-card"><span class="pos-badge pos-badge-back">1</span><br>{rot_left[3]}</div>
+            </div>
+            <!-- Front Row: Pos 4, 3, 2 (หน้าเน็ต) -->
+            <div class="player-grid" style="margin-top: 15px;">
+                <div class="player-card"><span class="pos-badge">4</span><br>{rot_left[0]}</div>
+                <div class="player-card"><span class="pos-badge">3</span><br>{rot_left[1]}</div>
+                <div class="player-card"><span class="pos-badge">2</span><br>{rot_left[2]}</div>
             </div>
         </div>
 
@@ -337,14 +336,14 @@ court_html = f"""
             <div style="color: white; font-weight: bold; text-align: center; margin-bottom: 5px;">
                 {right_name}
             </div>
-            <!-- Front Row: Pos 2, 3, 4 (Near Net) -->
+            <!-- Front Row: Pos 2, 3, 4 (หน้าเน็ต) -->
             <div class="player-grid">
                 <div class="player-card"><span class="pos-badge">2</span><br>{rot_right[2]}</div>
                 <div class="player-card"><span class="pos-badge">3</span><br>{rot_right[1]}</div>
                 <div class="player-card"><span class="pos-badge">4</span><br>{rot_right[0]}</div>
             </div>
-            <!-- Back Row: Pos 1, 6, 5 -->
-            <div class="player-grid">
+            <!-- Back Row: Pos 1, 6, 5 (ท้ายสนาม) -->
+            <div class="player-grid" style="margin-top: 15px;">
                 <div class="player-card"><span class="pos-badge pos-badge-back">1</span><br>{rot_right[3]}</div>
                 <div class="player-card"><span class="pos-badge pos-badge-back">6</span><br>{rot_right[4]}</div>
                 <div class="player-card"><span class="pos-badge pos-badge-back">5</span><br>{rot_right[5]}</div>
@@ -355,7 +354,7 @@ court_html = f"""
 """
 st.markdown(court_html, unsafe_allow_html=True)
 
-# Controls according to current sides
+# Controls
 rc1, rc2 = st.columns(2)
 with rc1:
     m1, m2 = st.columns(2)
@@ -417,7 +416,7 @@ with c3:
         if st.button("➡️ ข้ามไปเซตถัดไป (สลับฝั่ง)", type="primary", use_container_width=True, disabled=bool(match_winner)):
             save_history()
             st.session_state.match_data['current_set'] += 1
-            toggle_sides() # สลับฝั่งสนามเมื่อข้ามเซต
+            toggle_sides()
             st.rerun()
 
 if st.session_state.get('start_timer', False):
@@ -434,7 +433,7 @@ def generate_a4_editable_excel(m_data):
     workbook = xlsxwriter.Workbook(output, {'in_memory': True})
     ws = workbook.add_worksheet('ใบบันทึกคะแนน')
 
-    ws.set_paper(9)  # A4 Paper
+    ws.set_paper(9)
     ws.set_landscape()
     ws.fit_to_pages(1, 1)
 
