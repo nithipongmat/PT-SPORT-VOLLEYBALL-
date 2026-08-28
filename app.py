@@ -36,10 +36,10 @@ st.markdown("""
     position: relative;
 }
 .court-side-left {
-    border-right: 3px dashed #ffffff; /* เส้นรุก ฝั่งซ้าย */
+    border-right: 3px dashed #ffffff;
 }
 .court-side-right {
-    border-left: 3px dashed #ffffff; /* เส้นรุก ฝั่งขวา */
+    border-left: 3px dashed #ffffff;
 }
 .net-line {
     width: 8px;
@@ -305,7 +305,7 @@ rot_right = st.session_state.match_data[f'players_{right_team}']['court']
 left_name = st.session_state.match_data[f'team_{left_team}']
 right_name = st.session_state.match_data[f'team_{right_team}']
 
-# Render Court HTML (จัดระเบียบ 4, 3, 2 ชิดเน็ต และ 5, 6, 1 ท้ายสนาม)
+# Render Court HTML (ตำแหน่งวอลเลย์บอลถูกต้องตามมาตรฐานสากล)
 court_html = f"""
 <div class="court-container">
     <div class="court-board">
@@ -316,15 +316,15 @@ court_html = f"""
             </div>
             <!-- Back Row: Pos 5, 6, 1 (ท้ายสนาม) -->
             <div class="player-grid">
-                <div class="player-card"><span class="pos-badge pos-badge-back">5</span><br>{rot_left[5]}</div>
-                <div class="player-card"><span class="pos-badge pos-badge-back">6</span><br>{rot_left[4]}</div>
-                <div class="player-card"><span class="pos-badge pos-badge-back">1</span><br>{rot_left[3]}</div>
+                <div class="player-card"><span class="pos-badge pos-badge-back">5</span><br>{rot_left[4]}</div>
+                <div class="player-card"><span class="pos-badge pos-badge-back">6</span><br>{rot_left[5]}</div>
+                <div class="player-card"><span class="pos-badge pos-badge-back">1</span><br>{rot_left[0]}</div>
             </div>
             <!-- Front Row: Pos 4, 3, 2 (หน้าเน็ต) -->
             <div class="player-grid" style="margin-top: 15px;">
-                <div class="player-card"><span class="pos-badge">4</span><br>{rot_left[0]}</div>
-                <div class="player-card"><span class="pos-badge">3</span><br>{rot_left[1]}</div>
-                <div class="player-card"><span class="pos-badge">2</span><br>{rot_left[2]}</div>
+                <div class="player-card"><span class="pos-badge">4</span><br>{rot_left[3]}</div>
+                <div class="player-card"><span class="pos-badge">3</span><br>{rot_left[2]}</div>
+                <div class="player-card"><span class="pos-badge">2</span><br>{rot_left[1]}</div>
             </div>
         </div>
 
@@ -338,15 +338,15 @@ court_html = f"""
             </div>
             <!-- Front Row: Pos 2, 3, 4 (หน้าเน็ต) -->
             <div class="player-grid">
-                <div class="player-card"><span class="pos-badge">2</span><br>{rot_right[2]}</div>
-                <div class="player-card"><span class="pos-badge">3</span><br>{rot_right[1]}</div>
-                <div class="player-card"><span class="pos-badge">4</span><br>{rot_right[0]}</div>
+                <div class="player-card"><span class="pos-badge">2</span><br>{rot_right[1]}</div>
+                <div class="player-card"><span class="pos-badge">3</span><br>{rot_right[2]}</div>
+                <div class="player-card"><span class="pos-badge">4</span><br>{rot_right[3]}</div>
             </div>
             <!-- Back Row: Pos 1, 6, 5 (ท้ายสนาม) -->
             <div class="player-grid" style="margin-top: 15px;">
-                <div class="player-card"><span class="pos-badge pos-badge-back">1</span><br>{rot_right[3]}</div>
-                <div class="player-card"><span class="pos-badge pos-badge-back">6</span><br>{rot_right[4]}</div>
-                <div class="player-card"><span class="pos-badge pos-badge-back">5</span><br>{rot_right[5]}</div>
+                <div class="player-card"><span class="pos-badge pos-badge-back">1</span><br>{rot_right[0]}</div>
+                <div class="player-card"><span class="pos-badge pos-badge-back">6</span><br>{rot_right[5]}</div>
+                <div class="player-card"><span class="pos-badge pos-badge-back">5</span><br>{rot_right[4]}</div>
             </div>
         </div>
     </div>
