@@ -5,42 +5,89 @@ import copy
 from io import BytesIO
 import xlsxwriter
 
-st.set_page_config(page_title="PT SPORT 2026 VOLLEYBALL SCORE", layout="wide")
+st.set_page_config(page_title="PT SPORT 2026 VOLLEYBALL SCORE", layout="wide", initial_sidebar_state="expanded")
 
 DEFAULT_COURT_A = ['ผู้เล่น A1 (4)', 'ผู้เล่น A2 (3)', 'ผู้เล่น A3 (2)', 'ผู้เล่น A4 (1)', 'ผู้เล่น A5 (6)', 'ผู้เล่น A6 (5)']
 DEFAULT_COURT_B = ['ผู้เล่น B1 (4)', 'ผู้เล่น B2 (3)', 'ผู้เล่น B3 (2)', 'ผู้เล่น B4 (1)', 'ผู้เล่น B5 (6)', 'ผู้เล่น B6 (5)']
 
-# --- Custom CSS ---
+# --- Custom Styling & CSS FIX ---
 st.markdown("""
 <style>
+/* Base Setup */
+.main { background-color: #f4f6f9; }
+
+/* Score Display Card */
+.score-card {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border-radius: 16px;
+    padding: 20px;
+    text-align: center;
+    color: white;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    margin-bottom: 15px;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+.score-team-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin-bottom: 5px;
+    letter-spacing: 0.5px;
+}
+.score-number {
+    font-size: 5rem;
+    font-weight: 900;
+    line-height: 1;
+    text-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    margin: 10px 0;
+}
+.serve-indicator {
+    display: inline-block;
+    background-color: #10b981;
+    color: white;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+/* Court Graphic Setup */
 .court-container {
-    background-color: #1a4b8c;
-    padding: 15px;
-    border-radius: 12px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-    margin-bottom: 10px;
+    background: #0f172a;
+    padding: 20px;
+    border-radius: 16px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.2);
     display: flex;
     justify-content: center;
 }
 .court-board {
     display: flex;
     flex-direction: column;
-    background-color: #d96432;
-    border: 4px solid #ffffff;
-    border-radius: 6px;
+    background-color: #e056fd;
+    background: linear-gradient(180deg, #d35400 0%, #e67e22 100%);
+    border: 5px solid #ffffff;
+    border-radius: 8px;
     width: 100%;
-    max-width: 500px;
+    max-width: 520px;
     overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
 }
 .court-side {
     display: flex;
     flex-direction: column;
     padding: 12px;
 }
+.team-label-banner {
+    color: white;
+    font-weight: 800;
+    text-align: center;
+    font-size: 1.1rem;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    margin: 6px 0;
+}
 .net-line-horizontal {
-    height: 6px;
-    background: linear-gradient(to right, #ffffff 0%, #000000 50%, #ffffff 100%);
-    box-shadow: 0 0 8px rgba(0,0,0,0.5);
+    height: 10px;
+    background: repeating-linear-gradient(90deg, #ffffff, #ffffff 10px, #333333 10px, #333333 20px);
+    box-shadow: 0 0 10px rgba(0,0,0,0.6);
     z-index: 10;
 }
 .player-grid {
@@ -48,29 +95,33 @@ st.markdown("""
     grid-template-columns: repeat(3, 1fr);
     gap: 8px;
 }
+.player-grid-top { margin-top: 8px; }
+.player-grid-bottom { margin-bottom: 8px; }
+
 .player-card {
     background: rgba(255, 255, 255, 0.95);
     border-radius: 8px;
-    padding: 8px 4px;
+    padding: 10px 4px;
     text-align: center;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.2);
     font-size: 0.85rem;
-    font-weight: bold;
-    color: #111;
+    font-weight: 700;
+    color: #1e293b;
 }
 .pos-badge {
     display: inline-block;
-    width: 20px;
-    height: 20px;
-    line-height: 20px;
+    width: 22px;
+    height: 22px;
+    line-height: 22px;
     border-radius: 50%;
-    background-color: #1976D2;
+    background-color: #2563eb;
     color: white;
     font-size: 0.75rem;
-    margin-bottom: 3px;
+    font-weight: bold;
+    margin-bottom: 4px;
 }
 .pos-badge-back {
-    background-color: #E65100;
+    background-color: #ea580c;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -177,48 +228,48 @@ def add_score(team):
 
 # --- 2. SIDEBAR: MATCH INFO & PLAYERS ---
 with st.sidebar:
-    st.header("⚙️ ตั้งค่าการแข่งขัน & ผู้เล่น")
-    
+    st.header("⚙️ ตั้งค่าการแข่งขัน")
     st.session_state.match_data['gender'] = st.radio("ประเภท", ["ชาย", "หญิง", "ผสม"], horizontal=True)
     st.session_state.match_data['round_name'] = st.text_input("รอบ", st.session_state.match_data['round_name'])
     st.session_state.match_data['group_name'] = st.text_input("สาย", st.session_state.match_data['group_name'])
     st.session_state.match_data['match_no'] = st.text_input("คู่ที่", st.session_state.match_data['match_no'])
     
     st.markdown("---")
-    st.subheader("🎯 ตั้งค่าคะแนนจบเซต (ต้องห่าง 2 แต้ม)")
-    st.session_state.match_data['target_score_reg'] = st.number_input("คะแนนจบเซตปกติ (เซต 1-2)", min_value=1, value=st.session_state.match_data['target_score_reg'])
-    st.session_state.match_data['target_score_tie'] = st.number_input("คะแนนจบเซตตัดสิน (เซต 3)", min_value=1, value=st.session_state.match_data['target_score_tie'])
+    st.subheader("🎯 เกณฑ์คะแนน")
+    st.session_state.match_data['target_score_reg'] = st.number_input("เซตปกติ (เซต 1-2)", min_value=1, value=st.session_state.match_data['target_score_reg'])
+    st.session_state.match_data['target_score_tie'] = st.number_input("เซตตัดสิน (เซต 3)", min_value=1, value=st.session_state.match_data['target_score_tie'])
     
     st.markdown("---")
-    st.session_state.match_data['team_a'] = st.text_input("ชื่อทีม A", st.session_state.match_data['team_a'])
-    st.session_state.match_data['team_b'] = st.text_input("ชื่อทีม B", st.session_state.match_data['team_b'])
+    st.subheader("👥 ชื่อทีม")
+    st.session_state.match_data['team_a'] = st.text_input("ทีม A", st.session_state.match_data['team_a'])
+    st.session_state.match_data['team_b'] = st.text_input("ทีม B", st.session_state.match_data['team_b'])
     
     st.markdown("---")
-    st.subheader("🔁 เปลี่ยนตัวผู้เล่น ทีม A")
+    st.subheader("🔄 เปลี่ยนตัวผู้เล่น ทีม A")
     court_a = st.session_state.match_data['players_a']['court']
     bench_a = st.session_state.match_data['players_a']['bench']
     p_out_a = st.selectbox("ตัวจริงออก (A)", court_a, key="out_a")
     p_in_a = st.selectbox("ตัวสำรองเข้า (A)", bench_a, key="in_a")
-    if st.button("🔄 ยืนยันเปลี่ยนตัว A"):
+    if st.button("ยืนยันเปลี่ยนตัว A", use_container_width=True):
         save_history()
         idx_out, idx_in = court_a.index(p_out_a), bench_a.index(p_in_a)
         court_a[idx_out], bench_a[idx_in] = bench_a[idx_in], court_a[idx_out]
         st.rerun()
 
     st.markdown("---")
-    st.subheader("🔁 เปลี่ยนตัวผู้เล่น ทีม B")
+    st.subheader("🔄 เปลี่ยนตัวผู้เล่น ทีม B")
     court_b = st.session_state.match_data['players_b']['court']
     bench_b = st.session_state.match_data['players_b']['bench']
     p_out_b = st.selectbox("ตัวจริงออก (B)", court_b, key="out_b")
     p_in_b = st.selectbox("ตัวสำรองเข้า (B)", bench_b, key="in_b")
-    if st.button("🔄 ยืนยันเปลี่ยนตัว B"):
+    if st.button("ยืนยันเปลี่ยนตัว B", use_container_width=True):
         save_history()
         idx_out, idx_in = court_b.index(p_out_b), bench_b.index(p_in_b)
         court_b[idx_out], bench_b[idx_in] = bench_b[idx_in], court_b[idx_out]
         st.rerun()
 
     st.markdown("---")
-    if st.button("🚨 รีเซ็ตการแข่งขันใหม่ทั้งหมด"):
+    if st.button("🚨 รีเซ็ตแมตช์ใหม่ทั้งหมด", type="secondary", use_container_width=True):
         del st.session_state.match_data
         st.session_state.history = []
         st.rerun()
@@ -245,11 +296,11 @@ if selected_set != curr_set:
     st.session_state.match_data['current_set'] = selected_set
     st.rerun()
 
-ctrl_c1, ctrl_c2 = st.columns([2, 1])
+ctrl_c1, ctrl_c2 = st.columns([3, 1])
 with ctrl_c1:
-    st.subheader(f"🏆 กำลังแข่ง: เซตที่ {curr_set + 1} / 3 (เป้าหมาย {curr_target} คะแนน / ต้องห่าง 2 แต้ม) | สกอร์รวม: {st.session_state.match_data['team_a']} ({sets_won_a}) - ({sets_won_b}) {st.session_state.match_data['team_b']}")
+    st.info(f"🏆 **กำลังแข่ง:** เซตที่ {curr_set + 1} / 3 (เป้าหมาย {curr_target} คะแนน) | **สกอร์รวมเซต:** {st.session_state.match_data['team_a']} ({sets_won_a}) - ({sets_won_b}) {st.session_state.match_data['team_b']}")
 with ctrl_c2:
-    if st.button("↩️ ย้อนกลับคะแนน/ตำแหน่งล่าสุด (Undo)", type="secondary", use_container_width=True):
+    if st.button("↩️ Undo ล่าสุด", type="secondary", use_container_width=True):
         undo_last_action()
         st.rerun()
 
@@ -259,28 +310,44 @@ bottom_team = 'a' if is_swapped else 'b'
 
 col1, col2 = st.columns(2)
 
-# TOP TEAM SCORE
+# TOP TEAM SCORE DISPLAY
 with col1:
     t_key = top_team
     t_name = st.session_state.match_data[f'team_{t_key}']
-    server_badge = " 🟢 (เสิร์ฟ)" if st.session_state.match_data['server'] == t_key else ""
-    st.header(f"{t_name} (แดนบน){server_badge}")
+    is_serving = st.session_state.match_data['server'] == t_key
+    serve_html = '<div class="serve-indicator">🟢 ได้เสิร์ฟ</div>' if is_serving else ''
     score = st.session_state.match_data['scores'][curr_set][t_key]
-    color = "#D81B60" if t_key == 'b' else "#1E88E5"
-    st.markdown(f"<h1 style='text-align: center; font-size: 80px; color: {color};'>{score}</h1>", unsafe_allow_html=True)
+    color_style = "color: #f43f5e;" if t_key == 'b' else "color: #3b82f6;"
+
+    st.markdown(f"""
+    <div class="score-card">
+        <div class="score-team-title">{t_name} (แดนบน)</div>
+        {serve_html}
+        <div class="score-number" style="{color_style}">{score}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
     if st.button(f"➕ ได้คะแนน ({t_name})", use_container_width=True, type="primary", key="add_top", disabled=bool(match_winner)):
         add_score(t_key)
         st.rerun()
 
-# BOTTOM TEAM SCORE
+# BOTTOM TEAM SCORE DISPLAY
 with col2:
     t_key = bottom_team
     t_name = st.session_state.match_data[f'team_{t_key}']
-    server_badge = " 🟢 (เสิร์ฟ)" if st.session_state.match_data['server'] == t_key else ""
-    st.header(f"{t_name} (แดนล่าง){server_badge}")
+    is_serving = st.session_state.match_data['server'] == t_key
+    serve_html = '<div class="serve-indicator">🟢 ได้เสิร์ฟ</div>' if is_serving else ''
     score = st.session_state.match_data['scores'][curr_set][t_key]
-    color = "#D81B60" if t_key == 'b' else "#1E88E5"
-    st.markdown(f"<h1 style='text-align: center; font-size: 80px; color: {color};'>{score}</h1>", unsafe_allow_html=True)
+    color_style = "color: #f43f5e;" if t_key == 'b' else "color: #3b82f6;"
+
+    st.markdown(f"""
+    <div class="score-card">
+        <div class="score-team-title">{t_name} (แดนล่าง)</div>
+        {serve_html}
+        <div class="score-number" style="{color_style}">{score}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
     if st.button(f"➕ ได้คะแนน ({t_name})", use_container_width=True, type="primary", key="add_bottom", disabled=bool(match_winner)):
         add_score(t_key)
         st.rerun()
@@ -288,7 +355,7 @@ with col2:
 # --- VISUAL VOLLEYBALL COURT DISPLAY ---
 c_title_col, c_btn_col = st.columns([3, 1])
 with c_title_col:
-    st.markdown("### 🏟️ ผังตำแหน่งผู้เล่นในสนาม (Volleyball Court View)")
+    st.markdown("### 🏟️ ผังตำแหน่งผู้เล่นในสนาม (Volleyball Court)")
 with c_btn_col:
     if st.button("🔄 สลับฝั่งสนาม (บน ↔ ล่าง)", use_container_width=True):
         save_history()
@@ -300,20 +367,18 @@ rot_bottom = st.session_state.match_data[f'players_{bottom_team}']['court']
 top_name = st.session_state.match_data[f'team_{top_team}']
 bottom_name = st.session_state.match_data[f'team_{bottom_team}']
 
-# Render Court HTML
+# CLEAN HTML COURT RENDER (No inline style bugs)
 court_html = f"""
 <div class="court-container">
     <div class="court-board">
         <div class="court-side">
-            <div style="color: white; font-weight: bold; text-align: center; margin-bottom: 8px;">
-                {top_name} (แดนบน)
-            </div>
+            <div class="team-label-banner">{top_name} (แดนบน)</div>
             <div class="player-grid">
                 <div class="player-card"><span class="pos-badge pos-badge-back">5</span><br>{rot_top[4]}</div>
                 <div class="player-card"><span class="pos-badge pos-badge-back">6</span><br>{rot_top[5]}</div>
                 <div class="player-card"><span class="pos-badge pos-badge-back">1</span><br>{rot_top[0]}</div>
             </div>
-            <div class="player-grid" style="margin-top: 8px;">
+            <div class="player-grid player-grid-top">
                 <div class="player-card"><span class="pos-badge">4</span><br>{rot_top[3]}</div>
                 <div class="player-card"><span class="pos-badge">3</span><br>{rot_top[2]}</div>
                 <div class="player-card"><span class="pos-badge">2</span><br>{rot_top[1]}</div>
@@ -323,7 +388,7 @@ court_html = f"""
         <div class="net-line-horizontal"></div>
 
         <div class="court-side">
-            <div class="player-grid" style="margin-bottom: 8px;">
+            <div class="player-grid player-grid-bottom">
                 <div class="player-card"><span class="pos-badge">2</span><br>{rot_bottom[1]}</div>
                 <div class="player-card"><span class="pos-badge">3</span><br>{rot_bottom[2]}</div>
                 <div class="player-card"><span class="pos-badge">4</span><br>{rot_bottom[3]}</div>
@@ -333,9 +398,7 @@ court_html = f"""
                 <div class="player-card"><span class="pos-badge pos-badge-back">6</span><br>{rot_bottom[5]}</div>
                 <div class="player-card"><span class="pos-badge pos-badge-back">5</span><br>{rot_bottom[4]}</div>
             </div>
-            <div style="color: white; font-weight: bold; text-align: center; margin-top: 8px;">
-                {bottom_name} (แดนล่าง)
-            </div>
+            <div class="team-label-banner">{bottom_name} (แดนล่าง)</div>
         </div>
     </div>
 </div>
@@ -352,7 +415,7 @@ with rc1:
             rotate_team(top_team)
             st.rerun()
     with m2:
-        if st.button(f"↩️ รีเซ็ตตำแหน่ง ({top_name})", use_container_width=True):
+        if st.button(f"↩️ รีเซ็ต ({top_name})", use_container_width=True):
             save_history()
             default = DEFAULT_COURT_A if top_team == 'a' else DEFAULT_COURT_B
             st.session_state.match_data[f'players_{top_team}']['court'] = list(default)
@@ -366,7 +429,7 @@ with rc2:
             rotate_team(bottom_team)
             st.rerun()
     with m2:
-        if st.button(f"↩️ รีเซ็ตตำแหน่ง ({bottom_name})", use_container_width=True):
+        if st.button(f"↩️ รีเซ็ต ({bottom_name})", use_container_width=True):
             save_history()
             default = DEFAULT_COURT_A if bottom_team == 'a' else DEFAULT_COURT_B
             st.session_state.match_data[f'players_{bottom_team}']['court'] = list(default)
@@ -555,7 +618,6 @@ if st.session_state.completed_matches:
         st.write(f"**ประเภท:** {selected_m['gender']} | **รอบ:** {selected_m['round_name']} | **สาย:** {selected_m['group_name']} | **คู่ที่:** {selected_m['match_no']}")
         st.write(f"🏆 **ผู้ชนะ:** {selected_m['winner']} (ผลเซต {selected_m['sets_won_a']} - {selected_m['sets_won_b']})")
         
-        # Table Summary
         scores_summary = {
             "เซต": ["เซตที่ 1", "เซตที่ 2", "เซตที่ 3"],
             f"{selected_m['team_a']} (คะแนน)": [selected_m['scores'][0]['a'], selected_m['scores'][1]['a'], selected_m['scores'][2]['a']],
