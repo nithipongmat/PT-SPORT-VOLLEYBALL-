@@ -8,6 +8,7 @@ import xlsxwriter
 
 st.set_page_config(page_title="PT SPORT 2026 VOLLEYBALL SCORE", layout="wide", initial_sidebar_state="expanded")
 
+# Index: 0=Pos1, 1=Pos2, 2=Pos3, 3=Pos4, 4=Pos5, 5=Pos6
 DEFAULT_COURT_A = ['ผู้เล่น A1', 'ผู้เล่น A2', 'ผู้เล่น A3', 'ผู้เล่น A4', 'ผู้เล่น A5', 'ผู้เล่น A6']
 DEFAULT_COURT_B = ['ผู้เล่น B1', 'ผู้เล่น B2', 'ผู้เล่น B3', 'ผู้เล่น B4', 'ผู้เล่น B5', 'ผู้เล่น B6']
 
@@ -57,14 +58,14 @@ def undo_last_action():
     else:
         st.warning("ไม่มีประวัติให้ย้อนกลับ")
 
-# หมุนตามเข็มนาฬิกา (Clockwise): 1->6->5->4->3->2->1
+# แก้ไขตามที่คุณแจ้ง: Pos1 -> Pos6 -> Pos5 -> Pos4 -> Pos3 -> Pos2 -> Pos1
 def rotate_team_cw(team_key):
     r = st.session_state.match_data[f'players_{team_key}']['court']
-    st.session_state.match_data[f'players_{team_key}']['court'] = [r[-1]] + r[:-1]
+    st.session_state.match_data[f'players_{team_key}']['court'] = r[1:] + [r[0]]
 
 def rotate_team_ccw(team_key):
     r = st.session_state.match_data[f'players_{team_key}']['court']
-    st.session_state.match_data[f'players_{team_key}']['court'] = r[1:] + [r[0]]
+    st.session_state.match_data[f'players_{team_key}']['court'] = [r[-1]] + r[:-1]
 
 def toggle_sides():
     st.session_state.match_data['swapped_sides'] = not st.session_state.match_data['swapped_sides']
@@ -252,7 +253,7 @@ with col2:
                 minus_score(t_key)
                 st.rerun()
 
-# --- 4. CORRECT VOLLEYBALL COURT DISPLAY ---
+# --- 4. COURT DISPLAY ---
 c_title_col, c_btn_col = st.columns([3, 1])
 with c_title_col:
     st.markdown("### 🏟️ ผังตำแหน่งผู้เล่นในสนาม (Volleyball Court)")
@@ -381,7 +382,7 @@ body {{
         
         <div class="net-line-vertical"></div>
         
-        <!-- RIGHT COURT (CORRECTED POSITIONS) -->
+        <!-- RIGHT COURT -->
         <div class="court-side-horizontal">
             <div class="team-label-banner">{right_name}</div>
             <div class="court-grid-right">
