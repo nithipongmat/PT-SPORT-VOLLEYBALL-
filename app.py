@@ -57,6 +57,7 @@ def undo_last_action():
     else:
         st.warning("ไม่มีประวัติให้ย้อนกลับ")
 
+# หมุนตามเข็มนาฬิกา (Clockwise): 1->6->5->4->3->2->1
 def rotate_team_cw(team_key):
     r = st.session_state.match_data[f'players_{team_key}']['court']
     st.session_state.match_data[f'players_{team_key}']['court'] = [r[-1]] + r[:-1]
@@ -251,7 +252,7 @@ with col2:
                 minus_score(t_key)
                 st.rerun()
 
-# --- 4. HORIZONTAL COURT DISPLAY (FIT & COMPACT) ---
+# --- 4. CORRECT VOLLEYBALL COURT DISPLAY ---
 c_title_col, c_btn_col = st.columns([3, 1])
 with c_title_col:
     st.markdown("### 🏟️ ผังตำแหน่งผู้เล่นในสนาม (Volleyball Court)")
@@ -361,6 +362,7 @@ body {{
 <body>
 <div class="court-container">
     <div class="court-board-horizontal">
+        <!-- LEFT COURT -->
         <div class="court-side-horizontal">
             <div class="team-label-banner">{left_name}</div>
             <div class="court-grid-left">
@@ -379,6 +381,7 @@ body {{
         
         <div class="net-line-vertical"></div>
         
+        <!-- RIGHT COURT (CORRECTED POSITIONS) -->
         <div class="court-side-horizontal">
             <div class="team-label-banner">{right_name}</div>
             <div class="court-grid-right">
@@ -407,12 +410,12 @@ rc1, rc2 = st.columns(2)
 with rc1:
     m1, m2, m3 = st.columns(3)
     with m1:
-        if st.button(f"↻ หมุนไปหน้า ({left_name})", use_container_width=True):
+        if st.button(f"↻ หมุนตามเข็ม ({left_name})", use_container_width=True):
             save_history()
             rotate_team_cw(left_team)
             st.rerun()
     with m2:
-        if st.button(f"↺ หมุนกลับ ({left_name})", use_container_width=True):
+        if st.button(f"↺ หมุนทวนเข็ม ({left_name})", use_container_width=True):
             save_history()
             rotate_team_ccw(left_team)
             st.rerun()
@@ -426,12 +429,12 @@ with rc1:
 with rc2:
     m1, m2, m3 = st.columns(3)
     with m1:
-        if st.button(f"↻ หมุนไปหน้า ({right_name})", use_container_width=True):
+        if st.button(f"↻ หมุนตามเข็ม ({right_name})", use_container_width=True):
             save_history()
             rotate_team_cw(right_team)
             st.rerun()
     with m2:
-        if st.button(f"↺ หมุนกลับ ({right_name})", use_container_width=True):
+        if st.button(f"↺ หมุนทวนเข็ม ({right_name})", use_container_width=True):
             save_history()
             rotate_team_ccw(right_team)
             st.rerun()
