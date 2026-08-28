@@ -5,7 +5,7 @@ import copy
 from io import BytesIO
 import xlsxwriter
 
-st.set_page_config(page_title="PT SPORT DAY 2026 - Scorekeeper Pro", layout="wide")
+st.set_page_config(page_title="PT SPORT DAY 2026 - Volleyball Score", layout="wide")
 
 DEFAULT_COURT_A = ['ผู้เล่น A1 (4)', 'ผู้เล่น A2 (3)', 'ผู้เล่น A3 (2)', 'ผู้เล่น A4 (1)', 'ผู้เล่น A5 (6)', 'ผู้เล่น A6 (5)']
 DEFAULT_COURT_B = ['ผู้เล่น B1 (4)', 'ผู้เล่น B2 (3)', 'ผู้เล่น B3 (2)', 'ผู้เล่น B4 (1)', 'ผู้เล่น B5 (6)', 'ผู้เล่น B6 (5)']
@@ -103,7 +103,6 @@ def add_score(team):
     sb = st.session_state.match_data['scores'][curr_set]['b']
     
     if check_set_winner(sa, sb, curr_target):
-        # ตรวจสอบว่าแมตช์ยังไม่จบและมีเซตถัดไปให้ไปต่อ
         new_sets_a, new_sets_b = calculate_sets_won()
         if new_sets_a < 2 and new_sets_b < 2 and curr_set < 2:
             st.session_state.match_data['current_set'] += 1
@@ -416,7 +415,7 @@ with dl_col:
         use_container_width=True
     )
 
-# --- 6. MATCH HISTORY SECTION ---
+# --- 6. MATCH HISTORY & DELETE SECTION ---
 st.markdown("---")
 st.header("📜 ประวัติผลการแข่งขันย้อนหลัง")
 
@@ -425,27 +424,46 @@ if st.session_state.completed_matches:
         f"คู่ที่ {m['match_no'] if m['match_no'] else 'N/A'}: {m['team_a']} vs {m['team_b']} ({m['gender']} - รอบ {m['round_name']})"
         for m in st.session_state.completed_matches
     ]
-    selected_match_idx = st.selectbox("เลือกคู่ที่ต้องการดูผลย้อนหลัง:", range(len(history_options)), format_func=lambda x: history_options[x])
     
-    selected_m = st.session_state.completed_matches[selected_match_idx]
-    
-    st.markdown(f"### 🏐 รายละเอียด: {selected_m['team_a']} VS {selected_m['team_b']}")
-    st.write(f"**ประเภท:** {selected_m['gender']} | **รอบ:** {selected_m['round_name']} | **สาย:** {selected_m['group_name']} | **คู่ที่:** {selected_m['match_no']}")
-    st.write(f"🏆 **ผู้ชนะ:** {selected_m['winner']} (ผลเซต {selected_m['sets_won_a']} - {selected_m['sets_won_b']})")
-    
-    # Table Summary
-    scores_summary = {
-        "เซต": ["เซตที่ 1", "เซตที่ 2", "เซตที่ 3"],
-        f"{selected_m['team_a']} (คะแนน)": [selected_m['scores'][0]['a'], selected_m['scores'][1]['a'], selected_m['scores'][2]['a']],
-        f"{selected_m['team_b']} (คะแนน)": [selected_m['scores'][0]['b'], selected_m['scores'][1]['b'], selected_m['scores'][2]['b']]
-    }
-    st.table(pd.DataFrame(scores_summary))
-    
-    st.download_button(
-        label=f"📥 ดาวน์โหลดใบบันทึกคะแนนคู่นี้ (.xlsx)",
-        data=generate_a4_editable_excel(selected_m),
-        file_name=f"ScoreSheet_Match_{selected_m['match_no']}_{selected_m['team_a']}_vs_{selected_m['team_b']}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    sel_col, del_col = st.columns([3, 1])
+    with sel_col:
+        selected_match_idx = st.selectbox("เลือกคู่ที่ต้องการดูผลย้อนหลัง:", range(len(history_options)), format_func=lambda x: history_options[x])
+    with del_col:
+        st.write(" ") # ระยะเว้นบรรทัด
+        st.write(" ")
+        if st.button("🗑️ ลบคู่นี้", type="secondary", use_container_width=True):
+            st.session_state.completed_matches.pop(selected_match_idx)
+            st.success("ลบประวัติการแข่งขันคู่นี้เรียบร้อย!")
+            st.rerun()
+
+    if st.session_state.completed_matches:
+        selected_m = st.session_state.completed_matches[selected_match_idx]
+        
+        st.markdown(f"### 🏐 รายละเอียด: {selected_m['team_a']} VS {selected_m['team_b']}")
+        st.write(f"**ประเภท:** {selected_m['gender']} | **รอบ:** {selected_m['round_name']} | **สาย:** {selected_m['group_name']} | **คู่ที่:** {selected_m['match_no']}")
+        st.write(f"🏆 **ผู้ชนะ:** {selected_m['winner']} (ผลเซต {selected_m['sets_won_a']} - {selected_m['sets_won_b']})")
+        
+        # Table Summary
+        scores_summary = {
+            "เซต": ["เซตที่ 1", "เซตที่ 2", "เซตที่ 3"],
+            f"{selected_m['team_a']} (คะแนน)": [selected_m['scores'][0]['a'], selected_m['scores'][1]['a'], selected_m['scores'][2]['a']],
+            f"{selected_m['team_b']} (คะแนน)": [selected_m['scores'][0]['b'], selected_m['scores'][1]['b'], selected_m['scores'][2]['b']]
+        }
+        st.table(pd.DataFrame(scores_summary))
+        
+        d1, d2 = st.columns([2, 1])
+        with d1:
+            st.download_button(
+                label=f"📥 ดาวน์โหลดใบบันทึกคะแนนคู่นี้ (.xlsx)",
+                data=generate_a4_editable_excel(selected_m),
+                file_name=f"ScoreSheet_Match_{selected_m['match_no']}_{selected_m['team_a']}_vs_{selected_m['team_b']}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+        with d2:
+            if st.button("❌ ลบประวัติการแข่งขันทั้งหมด", type="primary", use_container_width=True):
+                st.session_state.completed_matches = []
+                st.success("ลบประวัติการแข่งขันทั้งหมดเรียบร้อย!")
+                st.rerun()
 else:
     st.info("ยังไม่มีประวัติการแข่งขันที่บันทึกไว้")
