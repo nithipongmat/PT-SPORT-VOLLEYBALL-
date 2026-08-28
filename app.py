@@ -10,6 +10,76 @@ st.set_page_config(page_title="PT SPORT DAY 2026 - Volleyball Score", layout="wi
 DEFAULT_COURT_A = ['ผู้เล่น A1 (4)', 'ผู้เล่น A2 (3)', 'ผู้เล่น A3 (2)', 'ผู้เล่น A4 (1)', 'ผู้เล่น A5 (6)', 'ผู้เล่น A6 (5)']
 DEFAULT_COURT_B = ['ผู้เล่น B1 (4)', 'ผู้เล่น B2 (3)', 'ผู้เล่น B3 (2)', 'ผู้เล่น B4 (1)', 'ผู้เล่น B5 (6)', 'ผู้เล่น B6 (5)']
 
+# --- Custom CSS สำหรับสนามวอลเลย์บอล Visual ---
+st.markdown("""
+<style>
+.court-container {
+    background-color: #1a4b8c;
+    padding: 15px;
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    margin-bottom: 10px;
+}
+.court-board {
+    display: flex;
+    background-color: #d96432;
+    border: 4px solid #ffffff;
+    border-radius: 6px;
+    position: relative;
+    overflow: hidden;
+}
+.court-side {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    position: relative;
+}
+.court-side-left {
+    border-right: 3px dashed #ffffff; /* เส้นรุก ฝั่งซ้าย */
+}
+.court-side-right {
+    border-left: 3px dashed #ffffff; /* เส้นรุก ฝั่งขวา */
+}
+.net-line {
+    width: 8px;
+    background: linear-gradient(to bottom, #ffffff 0%, #000000 50%, #ffffff 100%);
+    box-shadow: 0 0 8px rgba(0,0,0,0.5);
+    z-index: 10;
+}
+.player-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 5px;
+}
+.player-card {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 8px;
+    padding: 8px 4px;
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    font-size: 0.85rem;
+    font-weight: bold;
+    color: #111;
+}
+.pos-badge {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    line-height: 20px;
+    border-radius: 50%;
+    background-color: #1976D2;
+    color: white;
+    font-size: 0.75rem;
+    margin-bottom: 3px;
+}
+.pos-badge-back {
+    background-color: #E65100;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # --- 1. INITIALIZE SESSION STATE ---
 if 'match_data' not in st.session_state:
     st.session_state.match_data = {
@@ -23,6 +93,7 @@ if 'match_data' not in st.session_state:
         'team_b': 'นักศึกษาชั้นปีที่ 2',
         'scores': [{'a': 0, 'b': 0}, {'a': 0, 'b': 0}, {'a': 0, 'b': 0}],
         'current_set': 0,
+        'swapped_sides': False, # ติดตามว่ามีการสลับฝั่งอยู่หรือไม่
         'timeouts': {'a': [[False, False], [False, False], [False, False]], 
                      'b': [[False, False], [False, False], [False, False]]},
         'server': 'a',
@@ -59,6 +130,9 @@ def rotate_team(team_key):
     r = st.session_state.match_data[f'players_{team_key}']['court']
     st.session_state.match_data[f'players_{team_key}']['court'] = [r[-1]] + r[:-1]
 
+def toggle_sides():
+    st.session_state.match_data['swapped_sides'] = not st.session_state.match_data['swapped_sides']
+
 def check_set_winner(sa, sb, target):
     if (sa >= target or sb >= target) and abs(sa - sb) >= 2:
         return 'a' if sa > sb else 'b'
@@ -92,12 +166,10 @@ def add_score(team):
     curr_set = st.session_state.match_data['current_set']
     st.session_state.match_data['scores'][curr_set][team] += 1
     
-    # หมุนตำแหน่งถ้าเปลี่ยนฝั่งเสิร์ฟ
     if st.session_state.match_data['server'] != team:
         st.session_state.match_data['server'] = team
         rotate_team(team)
 
-    # ตรวจสอบการชนะเซตอัตโนมัติ
     curr_target = st.session_state.match_data['target_score_reg'] if curr_set < 2 else st.session_state.match_data['target_score_tie']
     sa = st.session_state.match_data['scores'][curr_set]['a']
     sb = st.session_state.match_data['scores'][curr_set]['b']
@@ -106,6 +178,7 @@ def add_score(team):
         new_sets_a, new_sets_b = calculate_sets_won()
         if new_sets_a < 2 and new_sets_b < 2 and curr_set < 2:
             st.session_state.match_data['current_set'] += 1
+            toggle_sides() # สลับฝั่งสนามอัตโนมัติเมื่อจบเซต
 
 # --- 2. SIDEBAR: MATCH INFO & PLAYERS ---
 with st.sidebar:
@@ -122,8 +195,8 @@ with st.sidebar:
     st.session_state.match_data['target_score_tie'] = st.number_input("คะแนนจบเซตตัดสิน (เซต 3)", min_value=1, value=st.session_state.match_data['target_score_tie'])
     
     st.markdown("---")
-    st.session_state.match_data['team_a'] = st.text_input("ชื่อทีม A (ทีม 1)", st.session_state.match_data['team_a'])
-    st.session_state.match_data['team_b'] = st.text_input("ชื่อทีม B (ทีม 2)", st.session_state.match_data['team_b'])
+    st.session_state.match_data['team_a'] = st.text_input("ชื่อทีม A", st.session_state.match_data['team_a'])
+    st.session_state.match_data['team_b'] = st.text_input("ชื่อทีม B", st.session_state.match_data['team_b'])
     
     st.markdown("---")
     st.subheader("🔁 เปลี่ยนตัวผู้เล่น ทีม A")
@@ -185,80 +258,131 @@ with ctrl_c2:
         undo_last_action()
         st.rerun()
 
+# กำหนดฝั่งซ้าย/ขวาตามสถานะ swapped_sides
+is_swapped = st.session_state.match_data['swapped_sides']
+left_team = 'b' if is_swapped else 'a'
+right_team = 'a' if is_swapped else 'b'
+
 col1, col2 = st.columns(2)
 
-# TEAM A
+# LEFT SIDE SCORE
 with col1:
-    server_badge = " 🟢 (เสิร์ฟ)" if st.session_state.match_data['server'] == 'a' else ""
-    st.header(f"{st.session_state.match_data['team_a']}{server_badge}")
-    score_a = st.session_state.match_data['scores'][curr_set]['a']
-    st.markdown(f"<h1 style='text-align: center; font-size: 80px; color: #1E88E5;'>{score_a}</h1>", unsafe_allow_html=True)
-    
-    if st.button("➕ ได้คะแนน (Team A)", use_container_width=True, type="primary", key="add_a", disabled=bool(match_winner)):
-        add_score('a')
+    t_key = left_team
+    t_name = st.session_state.match_data[f'team_{t_key}']
+    server_badge = " 🟢 (เสิร์ฟ)" if st.session_state.match_data['server'] == t_key else ""
+    st.header(f"{t_name}{server_badge}")
+    score = st.session_state.match_data['scores'][curr_set][t_key]
+    color = "#D81B60" if t_key == 'b' else "#1E88E5"
+    st.markdown(f"<h1 style='text-align: center; font-size: 80px; color: {color};'>{score}</h1>", unsafe_allow_html=True)
+    if st.button(f"➕ ได้คะแนน ({t_name})", use_container_width=True, type="primary", key="add_left", disabled=bool(match_winner)):
+        add_score(t_key)
         st.rerun()
 
-    st.markdown("---")
-    st.write("**ตำแหน่งในสนาม:**")
-    rot_a = st.session_state.match_data['players_a']['court']
-    
-    grid_a_top = st.columns(3)
-    grid_a_top[0].info(f"4: {rot_a[0]}")
-    grid_a_top[1].info(f"3: {rot_a[1]}")
-    grid_a_top[2].info(f"2: {rot_a[2]}")
-    
-    grid_a_bot = st.columns(3)
-    grid_a_bot[0].warning(f"5: {rot_a[5]}")
-    grid_a_bot[1].warning(f"6: {rot_a[4]}")
-    grid_a_bot[2].warning(f"1: {rot_a[3]}")
-    
-    act_a1, act_a2 = st.columns(2)
-    with act_a1:
-        if st.button("🔄 หมุนตำแหน่ง A", use_container_width=True):
-            save_history()
-            rotate_team('a')
-            st.rerun()
-    with act_a2:
-        if st.button("↩️ รีเซ็ตตำแหน่ง A", use_container_width=True):
-            save_history()
-            st.session_state.match_data['players_a']['court'] = list(DEFAULT_COURT_A)
-            st.rerun()
-
-# TEAM B
+# RIGHT SIDE SCORE
 with col2:
-    server_badge = " 🟢 (เสิร์ฟ)" if st.session_state.match_data['server'] == 'b' else ""
-    st.header(f"{st.session_state.match_data['team_b']}{server_badge}")
-    score_b = st.session_state.match_data['scores'][curr_set]['b']
-    st.markdown(f"<h1 style='text-align: center; font-size: 80px; color: #D81B60;'>{score_b}</h1>", unsafe_allow_html=True)
-    
-    if st.button("➕ ได้คะแนน (Team B)", use_container_width=True, type="primary", key="add_b", disabled=bool(match_winner)):
-        add_score('b')
+    t_key = right_team
+    t_name = st.session_state.match_data[f'team_{t_key}']
+    server_badge = " 🟢 (เสิร์ฟ)" if st.session_state.match_data['server'] == t_key else ""
+    st.header(f"{t_name}{server_badge}")
+    score = st.session_state.match_data['scores'][curr_set][t_key]
+    color = "#D81B60" if t_key == 'b' else "#1E88E5"
+    st.markdown(f"<h1 style='text-align: center; font-size: 80px; color: {color};'>{score}</h1>", unsafe_allow_html=True)
+    if st.button(f"➕ ได้คะแนน ({t_name})", use_container_width=True, type="primary", key="add_right", disabled=bool(match_winner)):
+        add_score(t_key)
         st.rerun()
 
-    st.markdown("---")
-    st.write("**ตำแหน่งในสนาม:**")
-    rot_b = st.session_state.match_data['players_b']['court']
-    
-    grid_b_top = st.columns(3)
-    grid_b_top[0].info(f"4: {rot_b[0]}")
-    grid_b_top[1].info(f"3: {rot_b[1]}")
-    grid_b_top[2].info(f"2: {rot_b[2]}")
-    
-    grid_b_bot = st.columns(3)
-    grid_b_bot[0].warning(f"5: {rot_b[5]}")
-    grid_b_bot[1].warning(f"6: {rot_b[4]}")
-    grid_b_bot[2].warning(f"1: {rot_b[3]}")
+# --- VISUAL VOLLEYBALL COURT DISPLAY ---
+c_title_col, c_btn_col = st.columns([3, 1])
+with c_title_col:
+    st.markdown("### 🏟️ ผังตำแหน่งผู้เล่นในสนาม (Volleyball Court View)")
+with c_btn_col:
+    if st.button("🔄 สลับฝั่งสนาม (A ↔ B)", use_container_width=True):
+        save_history()
+        toggle_sides()
+        st.rerun()
 
-    act_b1, act_b2 = st.columns(2)
-    with act_b1:
-        if st.button("🔄 หมุนตำแหน่ง B", use_container_width=True):
+rot_left = st.session_state.match_data[f'players_{left_team}']['court']
+rot_right = st.session_state.match_data[f'players_{right_team}']['court']
+left_name = st.session_state.match_data[f'team_{left_team}']
+right_name = st.session_state.match_data[f'team_{right_team}']
+
+# Render Court HTML Dynamic Side
+court_html = f"""
+<div class="court-container">
+    <div class="court-board">
+        <!-- LEFT SIDE -->
+        <div class="court-side court-side-left">
+            <div style="color: white; font-weight: bold; text-align: center; margin-bottom: 5px;">
+                {left_name}
+            </div>
+            <!-- Front Row: Pos 4, 3, 2 (Near Net) -->
+            <div class="player-grid">
+                <div class="player-card"><span class="pos-badge">4</span><br>{rot_left[0]}</div>
+                <div class="player-card"><span class="pos-badge">3</span><br>{rot_left[1]}</div>
+                <div class="player-card"><span class="pos-badge">2</span><br>{rot_left[2]}</div>
+            </div>
+            <!-- Back Row: Pos 5, 6, 1 -->
+            <div class="player-grid">
+                <div class="player-card"><span class="pos-badge pos-badge-back">5</span><br>{rot_left[5]}</div>
+                <div class="player-card"><span class="pos-badge pos-badge-back">6</span><br>{rot_left[4]}</div>
+                <div class="player-card"><span class="pos-badge pos-badge-back">1</span><br>{rot_left[3]}</div>
+            </div>
+        </div>
+
+        <!-- NET LINE -->
+        <div class="net-line"></div>
+
+        <!-- RIGHT SIDE -->
+        <div class="court-side court-side-right">
+            <div style="color: white; font-weight: bold; text-align: center; margin-bottom: 5px;">
+                {right_name}
+            </div>
+            <!-- Front Row: Pos 2, 3, 4 (Near Net) -->
+            <div class="player-grid">
+                <div class="player-card"><span class="pos-badge">2</span><br>{rot_right[2]}</div>
+                <div class="player-card"><span class="pos-badge">3</span><br>{rot_right[1]}</div>
+                <div class="player-card"><span class="pos-badge">4</span><br>{rot_right[0]}</div>
+            </div>
+            <!-- Back Row: Pos 1, 6, 5 -->
+            <div class="player-grid">
+                <div class="player-card"><span class="pos-badge pos-badge-back">1</span><br>{rot_right[3]}</div>
+                <div class="player-card"><span class="pos-badge pos-badge-back">6</span><br>{rot_right[4]}</div>
+                <div class="player-card"><span class="pos-badge pos-badge-back">5</span><br>{rot_right[5]}</div>
+            </div>
+        </div>
+    </div>
+</div>
+"""
+st.markdown(court_html, unsafe_allow_html=True)
+
+# Controls according to current sides
+rc1, rc2 = st.columns(2)
+with rc1:
+    m1, m2 = st.columns(2)
+    with m1:
+        if st.button(f"🔄 หมุนตำแหน่ง ({left_name})", use_container_width=True):
             save_history()
-            rotate_team('b')
+            rotate_team(left_team)
             st.rerun()
-    with act_b2:
-        if st.button("↩️ รีเซ็ตตำแหน่ง B", use_container_width=True):
+    with m2:
+        if st.button(f"↩️ รีเซ็ตตำแหน่ง ({left_name})", use_container_width=True):
             save_history()
-            st.session_state.match_data['players_b']['court'] = list(DEFAULT_COURT_B)
+            default = DEFAULT_COURT_A if left_team == 'a' else DEFAULT_COURT_B
+            st.session_state.match_data[f'players_{left_team}']['court'] = list(default)
+            st.rerun()
+
+with rc2:
+    m1, m2 = st.columns(2)
+    with m1:
+        if st.button(f"🔄 หมุนตำแหน่ง ({right_name})", use_container_width=True):
+            save_history()
+            rotate_team(right_team)
+            st.rerun()
+    with m2:
+        if st.button(f"↩️ รีเซ็ตตำแหน่ง ({right_name})", use_container_width=True):
+            save_history()
+            default = DEFAULT_COURT_A if right_team == 'a' else DEFAULT_COURT_B
+            st.session_state.match_data[f'players_{right_team}']['court'] = list(default)
             st.rerun()
 
 # --- 4. TIMEOUT & CONTROLS ---
@@ -267,22 +391,22 @@ st.write("### ⏱️ ขอเวลานอกและควบคุมเ�
 c1, c2, c3 = st.columns(3)
 
 with c1:
-    to_a_cnt = sum(st.session_state.match_data['timeouts']['a'][curr_set])
-    if st.button(f"⏱️ ขอเวลานอก Team A ({to_a_cnt}/2)", use_container_width=True, disabled=bool(match_winner)):
-        if to_a_cnt < 2:
+    to_cnt = sum(st.session_state.match_data['timeouts'][left_team][curr_set])
+    if st.button(f"⏱️ ขอเวลานอก {left_name} ({to_cnt}/2)", use_container_width=True, disabled=bool(match_winner)):
+        if to_cnt < 2:
             save_history()
-            st.session_state.match_data['timeouts']['a'][curr_set][to_a_cnt] = True
+            st.session_state.match_data['timeouts'][left_team][curr_set][to_cnt] = True
             st.session_state.start_timer = True
             st.rerun()
         else:
             st.error("ขอเวลานอกครบแล้ว")
 
 with c2:
-    to_b_cnt = sum(st.session_state.match_data['timeouts']['b'][curr_set])
-    if st.button(f"⏱️ ขอเวลานอก Team B ({to_b_cnt}/2)", use_container_width=True, disabled=bool(match_winner)):
-        if to_b_cnt < 2:
+    to_cnt = sum(st.session_state.match_data['timeouts'][right_team][curr_set])
+    if st.button(f"⏱️ ขอเวลานอก {right_name} ({to_cnt}/2)", use_container_width=True, disabled=bool(match_winner)):
+        if to_cnt < 2:
             save_history()
-            st.session_state.match_data['timeouts']['b'][curr_set][to_b_cnt] = True
+            st.session_state.match_data['timeouts'][right_team][curr_set][to_cnt] = True
             st.session_state.start_timer = True
             st.rerun()
         else:
@@ -290,9 +414,10 @@ with c2:
 
 with c3:
     if curr_set < 2:
-        if st.button("➡️ ข้ามไปเซตถัดไป", type="primary", use_container_width=True, disabled=bool(match_winner)):
+        if st.button("➡️ ข้ามไปเซตถัดไป (สลับฝั่ง)", type="primary", use_container_width=True, disabled=bool(match_winner)):
             save_history()
             st.session_state.match_data['current_set'] += 1
+            toggle_sides() # สลับฝั่งสนามเมื่อข้ามเซต
             st.rerun()
 
 if st.session_state.get('start_timer', False):
@@ -429,7 +554,7 @@ if st.session_state.completed_matches:
     with sel_col:
         selected_match_idx = st.selectbox("เลือกคู่ที่ต้องการดูผลย้อนหลัง:", range(len(history_options)), format_func=lambda x: history_options[x])
     with del_col:
-        st.write(" ") # ระยะเว้นบรรทัด
+        st.write(" ")
         st.write(" ")
         if st.button("🗑️ ลบคู่นี้", type="secondary", use_container_width=True):
             st.session_state.completed_matches.pop(selected_match_idx)
