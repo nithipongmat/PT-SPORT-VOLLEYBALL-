@@ -6,7 +6,18 @@ import copy
 from io import BytesIO
 import xlsxwriter
 
+# นำเข้าตัวสั่ง Auto-refresh สำหรับหน้าสกอร์บอร์ด
+try:
+    from streamlit_autorun import autorun
+    HAS_AUTORUN = True
+except ImportError:
+    HAS_AUTORUN = False
+
 st.set_page_config(page_title="PT SPORT 2026 VOLLEYBALL SCORE", layout="wide", initial_sidebar_state="expanded")
+
+# --- 0. CHECK VIEW MODE (QUERY PARAMETERS) ---
+query_params = st.query_params
+is_scoreboard = query_params.get("view") == "scoreboard"
 
 # Index: 0=Pos1, 1=Pos2, 2=Pos3, 3=Pos4, 4=Pos5, 5=Pos6
 DEFAULT_COURT_A = ['ผู้เล่น A1', 'ผู้เล่น A2', 'ผู้เล่น A3', 'ผู้เล่น A4', 'ผู้เล่น A5', 'ผู้เล่น A6']
@@ -45,8 +56,6 @@ if 'history' not in st.session_state:
 if 'completed_matches' not in st.session_state:
     st.session_state.completed_matches = []
 
-st.title("🏐 PT SPORT 2026 VOLLEYBALL SCORE")
-
 # --- HELPER FUNCTIONS ---
 def save_history():
     st.session_state.history.append(copy.deepcopy(st.session_state.match_data))
@@ -58,7 +67,6 @@ def undo_last_action():
     else:
         st.warning("ไม่มีประวัติให้ย้อนกลับ")
 
-# แก้ไขตามที่คุณแจ้ง: Pos1 -> Pos6 -> Pos5 -> Pos4 -> Pos3 -> Pos2 -> Pos1
 def rotate_team_cw(team_key):
     r = st.session_state.match_data[f'players_{team_key}']['court']
     st.session_state.match_data[f'players_{team_key}']['court'] = r[1:] + [r[0]]
@@ -116,6 +124,65 @@ def minus_score(team):
         save_history()
         st.session_state.match_data['scores'][curr_set][team] -= 1
 
+# =========================================================
+# 📺 MODE 1: หน้าจอแสดงผล SCOREBOARD (สำหรับเครื่องที่ 2)
+# =========================================================
+if is_scoreboard:
+    if HAS_AUTORUN:
+        autorun(interval_in_ms=1000)
+
+    m = st.session_state.match_data
+    curr_set = m['current_set']
+    curr_target = m['target_score_reg'] if curr_set < 2 else m['target_score_tie']
+
+    is_swapped = m['swapped_sides']
+    left_team = 'b' if is_swapped else 'a'
+    right_team = 'a' if is_swapped else 'b'
+
+    st.markdown("<h1 style='text-align: center; margin-bottom: 0;'>📺 PT SPORT 2026 SCOREBOARD</h1>", unsafe_allow_html=True)
+    
+    info_str = f"ประเภท: {m['gender']} | รอบ: {m['round_name'] if m['round_name'] else '-'} | สาย: {m['group_name'] if m['group_name'] else '-'} | คู่ที่: {m['match_no'] if m['match_no'] else '-'}"
+    st.markdown(f"<h4 style='text-align: center; color: #64748b; margin-top: 5px;'>{info_str}</h4>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='text-align: center; background-color: #1e293b; color: white; padding: 10px; border-radius: 8px;'>กำลังแข่ง: เซตที่ {curr_set + 1} / 3 (เป้าหมาย {curr_target} คะแนน)</h3>", unsafe_allow_html=True)
+
+    # --- แสดงสกอร์ปัจจุบัน 2 ฝั่ง ---
+    sc1, sc2 = st.columns(2)
+    with sc1:
+        t_name = m[f'team_{left_team}']
+        score = m['scores'][curr_set][left_team]
+        serve_badge = " 🟢 (เสิร์ฟ)" if m['server'] == left_team else ""
+        with st.container(border=True):
+            st.markdown(f"<h2 style='text-align: center;'>{t_name}{serve_badge}</h2>", unsafe_allow_html=True)
+            st.markdown(f"<h1 style='text-align: center; font-size: 150px; color: #2563eb; margin: 0; font-weight: bold;'>{score}</h1>", unsafe_allow_html=True)
+
+    with sc2:
+        t_name = m[f'team_{right_team}']
+        score = m['scores'][curr_set][right_team]
+        serve_badge = " 🟢 (เสิร์ฟ)" if m['server'] == right_team else ""
+        with st.container(border=True):
+            st.markdown(f"<h2 style='text-align: center;'>{t_name}{serve_badge}</h2>", unsafe_allow_html=True)
+            st.markdown(f"<h1 style='text-align: center; font-size: 150px; color: #ea580c; margin: 0; font-weight: bold;'>{score}</h1>", unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # --- ตารางสรุปคะแนนแต่ละเซตที่ผ่านมา ---
+    st.markdown("<h3 style='text-align: center;'>📊 สรุปผลคะแนนรายเซต</h3>", unsafe_allow_html=True)
+    summary_data = {
+        "ทีม": [m['team_a'], m['team_b']],
+        "เซต 1": [m['scores'][0]['a'], m['scores'][0]['b']],
+        "เซต 2": [m['scores'][1]['a'], m['scores'][1]['b']],
+        "เซต 3 (ตัดสิน)": [m['scores'][2]['a'], m['scores'][2]['b']],
+        "ชนะรวม (เซต)": [sets_won_a, sets_won_b]
+    }
+    st.dataframe(pd.DataFrame(summary_data), use_container_width=True, hide_index=True)
+
+    st.stop() # หยุดทำงานส่วนที่เหลือสำหรับเครื่องสกอร์บอร์ด
+
+# =========================================================
+# 🎛️ MODE 2: หน้าจอควบคุม CONTROLLER (สำหรับกรรมการ)
+# =========================================================
+st.title("🏐 PT SPORT 2026 VOLLEYBALL SCORE")
+
 # --- 2. SIDEBAR ---
 with st.sidebar:
     st.header("⚙️ ตั้งค่าการแข่งขัน")
@@ -168,7 +235,7 @@ if match_winner:
     st.balloons()
     st.success(f"🎉 **การแข่งขันจบลงแล้ว! ผู้ชนะคือ: {match_winner}** (ชนะ {sets_won_a} - {sets_won_b} เซต)")
 
-# --- 3. SCOREBOARD ---
+# --- 3. SCOREBOARD CONTROLLER ---
 curr_set = st.session_state.match_data['current_set']
 curr_target = st.session_state.match_data['target_score_reg'] if curr_set < 2 else st.session_state.match_data['target_score_tie']
 
@@ -273,97 +340,23 @@ court_html_code = f"""
 <html>
 <head>
 <style>
-* {{
-    box-sizing: border-box;
-}}
-body {{
-    margin: 0;
-    padding: 0;
-    font-family: sans-serif;
-    background-color: transparent;
-}}
-.court-container {{
-    background: #0f172a;
-    padding: 10px;
-    border-radius: 12px;
-    display: flex;
-    justify-content: center;
-    width: 100%;
-}}
-.court-board-horizontal {{
-    display: flex;
-    flex-direction: row;
-    background: linear-gradient(90deg, #d35400 0%, #e67e22 100%);
-    border: 3px solid #ffffff;
-    border-radius: 8px;
-    width: 100%;
-}}
-.court-side-horizontal {{
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    padding: 8px;
-    justify-content: center;
-}}
-.team-label-banner {{
-    color: white;
-    font-weight: bold;
-    text-align: center;
-    font-size: 1rem;
-    margin-bottom: 6px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}}
-.net-line-vertical {{
-    width: 6px;
-    background: repeating-linear-gradient(0deg, #ffffff, #ffffff 10px, #000000 10px, #000000 20px);
-    z-index: 10;
-}}
-.court-grid-left, .court-grid-right {{
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
-}}
-.col-back, .col-front {{
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}}
-.player-card {{
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 6px;
-    padding: 4px;
-    text-align: center;
-    font-size: 0.8rem;
-    font-weight: bold;
-    color: #1e293b;
-    height: 46px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-}}
-.pos-badge {{
-    display: inline-block;
-    width: 18px;
-    height: 18px;
-    line-height: 18px;
-    border-radius: 50%;
-    background-color: #2563eb;
-    color: white;
-    font-size: 0.7rem;
-    margin-bottom: 2px;
-}}
-.pos-badge-back {{
-    background-color: #ea580c;
-}}
+* {{ box-sizing: border-box; }}
+body {{ margin: 0; padding: 0; font-family: sans-serif; background-color: transparent; }}
+.court-container {{ background: #0f172a; padding: 10px; border-radius: 12px; display: flex; justify-content: center; width: 100%; }}
+.court-board-horizontal {{ display: flex; flex-direction: row; background: linear-gradient(90deg, #d35400 0%, #e67e22 100%); border: 3px solid #ffffff; border-radius: 8px; width: 100%; }}
+.court-side-horizontal {{ flex: 1; display: flex; flex-direction: column; padding: 8px; justify-content: center; }}
+.team-label-banner {{ color: white; font-weight: bold; text-align: center; font-size: 1rem; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
+.net-line-vertical {{ width: 6px; background: repeating-linear-gradient(0deg, #ffffff, #ffffff 10px, #000000 10px, #000000 20px); z-index: 10; }}
+.court-grid-left, .court-grid-right {{ display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }}
+.col-back, .col-front {{ display: flex; flex-direction: column; gap: 6px; }}
+.player-card {{ background: rgba(255, 255, 255, 0.95); border-radius: 6px; padding: 4px; text-align: center; font-size: 0.8rem; font-weight: bold; color: #1e293b; height: 46px; display: flex; flex-direction: column; align-items: center; justify-content: center; }}
+.pos-badge {{ display: inline-block; width: 18px; height: 18px; line-height: 18px; border-radius: 50%; background-color: #2563eb; color: white; font-size: 0.7rem; margin-bottom: 2px; }}
+.pos-badge-back {{ background-color: #ea580c; }}
 </style>
 </head>
 <body>
 <div class="court-container">
     <div class="court-board-horizontal">
-        <!-- LEFT COURT -->
         <div class="court-side-horizontal">
             <div class="team-label-banner">{left_name}</div>
             <div class="court-grid-left">
@@ -379,10 +372,7 @@ body {{
                 </div>
             </div>
         </div>
-        
         <div class="net-line-vertical"></div>
-        
-        <!-- RIGHT COURT -->
         <div class="court-side-horizontal">
             <div class="team-label-banner">{right_name}</div>
             <div class="court-grid-right">
@@ -403,7 +393,6 @@ body {{
 </body>
 </html>
 """
-
 components.html(court_html_code, height=230)
 
 # Rotation Controls
