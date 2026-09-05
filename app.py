@@ -40,6 +40,7 @@ if 'match_data' not in st.session_state:
         'timeouts': {'a': [[False, False], [False, False], [False, False]], 
                      'b': [[False, False], [False, False], [False, False]]},
         'server': 'a',
+        'start_time': time.time(),
         'players_a': {
             'court': list(DEFAULT_COURT_A),
             'bench': ['สำรอง A1', 'สำรอง A2', 'สำรอง A3']
@@ -125,58 +126,91 @@ def minus_score(team):
         st.session_state.match_data['scores'][curr_set][team] -= 1
 
 # =========================================================
-# 📺 MODE 1: หน้าจอแสดงผล SCOREBOARD (สำหรับเครื่องที่ 2)
+# 📺 MODE 1: หน้าจอแสดงผล SCOREBOARD (ตรงตามภาพวาด)
 # =========================================================
 if is_scoreboard:
     if HAS_AUTOREFRESH:
+        st.query_params["view"] = "scoreboard"
         st_autorefresh(interval=1000, key="scoreboard_refresh")
 
     m = st.session_state.match_data
     curr_set = m['current_set']
-    curr_target = m['target_score_reg'] if curr_set < 2 else m['target_score_tie']
 
     is_swapped = m['swapped_sides']
     left_team = 'b' if is_swapped else 'a'
     right_team = 'a' if is_swapped else 'b'
 
-    st.markdown("<h1 style='text-align: center; margin-bottom: 0;'>📺 PT SPORT 2026 SCOREBOARD</h1>", unsafe_allow_html=True)
+    left_name = m[f'team_{left_team}']
+    right_name = m[f'team_{right_team}']
+
+    # 1. หัวเรื่องใหญ่ด้านบน
+    st.markdown("<h1 style='text-align: center; font-size: 50px; margin-bottom: 0px;'>PT SPORT 2026</h1>", unsafe_allow_html=True)
     
-    info_str = f"ประเภท: {m['gender']} | รอบ: {m['round_name'] if m['round_name'] else '-'} | สาย: {m['group_name'] if m['group_name'] else '-'} | คู่ที่: {m['match_no'] if m['match_no'] else '-'}"
-    st.markdown(f"<h4 style='text-align: center; color: #64748b; margin-top: 5px;'>{info_str}</h4>", unsafe_allow_html=True)
-    st.markdown(f"<h3 style='text-align: center; background-color: #1e293b; color: white; padding: 10px; border-radius: 8px;'>กำลังแข่ง: เซตที่ {curr_set + 1} / 3 (เป้าหมาย {curr_target} คะแนน)</h3>", unsafe_allow_html=True)
+    # คำอธิบายรูปวอลเลย์บอลเสิร์ฟ
+    serve_left_icon = " 🏐" if m['server'] == left_team else ""
+    serve_right_icon = " 🏐" if m['server'] == right_team else ""
 
-    # --- แสดงสกอร์ปัจจุบัน 2 ฝั่ง ---
-    sc1, sc2 = st.columns(2)
-    with sc1:
-        t_name = m[f'team_{left_team}']
-        score = m['scores'][curr_set][left_team]
-        serve_badge = " 🟢 (เสิร์ฟ)" if m['server'] == left_team else ""
-        with st.container(border=True):
-            st.markdown(f"<h2 style='text-align: center;'>{t_name}{serve_badge}</h2>", unsafe_allow_html=True)
-            st.markdown(f"<h1 style='text-align: center; font-size: 150px; color: #2563eb; margin: 0; font-weight: bold;'>{score}</h1>", unsafe_allow_html=True)
-
-    with sc2:
-        t_name = m[f'team_{right_team}']
-        score = m['scores'][curr_set][right_team]
-        serve_badge = " 🟢 (เสิร์ฟ)" if m['server'] == right_team else ""
-        with st.container(border=True):
-            st.markdown(f"<h2 style='text-align: center;'>{t_name}{serve_badge}</h2>", unsafe_allow_html=True)
-            st.markdown(f"<h1 style='text-align: center; font-size: 150px; color: #ea580c; margin: 0; font-weight: bold;'>{score}</h1>", unsafe_allow_html=True)
+    # 2. แถบชื่อทีม TEAM A vs TEAM B
+    team_head_col1, vs_col, team_head_col2 = st.columns([5, 2, 5])
+    with team_head_col1:
+        st.markdown(f"<div style='border: 3px solid white; border-radius: 12px; padding: 12px; text-align: center; font-size: 32px; font-weight: bold;'>{left_name}{serve_left_icon}</div>", unsafe_allow_html=True)
+    with vs_col:
+        st.markdown("<h1 style='text-align: center; margin: 0; font-size: 40px;'>VS</h1>", unsafe_allow_html=True)
+    with team_head_col2:
+        st.markdown(f"<div style='border: 3px solid white; border-radius: 12px; padding: 12px; text-align: center; font-size: 32px; font-weight: bold;'>{right_name}{serve_right_icon}</div>", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- ตารางสรุปคะแนนแต่ละเซตที่ผ่านมา ---
-    st.markdown("<h3 style='text-align: center;'>📊 สรุปผลคะแนนรายเซต</h3>", unsafe_allow_html=True)
-    summary_data = {
-        "ทีม": [m['team_a'], m['team_b']],
-        "เซต 1": [m['scores'][0]['a'], m['scores'][0]['b']],
-        "เซต 2": [m['scores'][1]['a'], m['scores'][1]['b']],
-        "เซต 3 (ตัดสิน)": [m['scores'][2]['a'], m['scores'][2]['b']],
-        "ชนะรวม (เซต)": [sets_won_a, sets_won_b]
-    }
-    st.dataframe(pd.DataFrame(summary_data), use_container_width=True, hide_index=True)
+    # 3. โครงสร้างหลัก: [คะแนนฝั่งซ้าย] | [นาฬิกา + สกอร์รายเซต] | [คะแนนฝั่งขวา]
+    sc_left, sc_center, sc_right = st.columns([4, 3, 4])
 
-    st.stop() # หยุดทำงานส่วนที่เหลือสำหรับเครื่องสกอร์บอร์ด
+    # คะแนนฝั่งซ้าย
+    with sc_left:
+        score_left = m['scores'][curr_set][left_team]
+        st.markdown(f"""
+        <div style='border: 4px solid white; border-radius: 20px; padding: 20px; text-align: center; background-color: #0f172a;'>
+            <h1 style='font-size: 160px; margin: 0; color: #2563eb; font-weight: bold;'>{score_left:02d}</h1>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ตรงกลาง: เวลา + SET 1, SET 2, SET 3
+    with sc_center:
+        # คำนวณเวลาที่ผ่านไป (Timer)
+        elapsed_sec = int(time.time() - m.get('start_time', time.time()))
+        time_str = time.strftime("%H:%M:%S", time.gmtime(elapsed_sec))
+
+        # กล่องเวลา 00:00:00
+        st.markdown(f"""
+        <div style='border: 2px solid white; border-radius: 10px; padding: 8px; text-align: center; font-size: 28px; font-weight: bold; background-color: #1e293b; margin-bottom: 15px;'>
+            ⏱️ {time_str}
+        </div>
+        """, unsafe_allow_html=True)
+
+        # รายการ SET 1, SET 2, SET 3
+        for s_idx in range(3):
+            set_sa = m['scores'][s_idx][left_team]
+            set_sb = m['scores'][s_idx][right_team]
+            is_active = (s_idx == curr_set)
+            bg_color = "#2563eb" if is_active else "#334155"
+            border_style = "3px solid #f59e0b" if is_active else "1px solid #64748b"
+
+            st.markdown(f"""
+            <div style='border: {border_style}; border-radius: 8px; padding: 6px; text-align: center; background-color: {bg_color}; margin-bottom: 8px;'>
+                <div style='font-size: 14px; color: #cbd5e1;'>SET {s_idx + 1}</div>
+                <div style='font-size: 22px; font-weight: bold;'>{set_sa} - {set_sb}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    # คะแนนฝั่งขวา
+    with sc_right:
+        score_right = m['scores'][curr_set][right_team]
+        st.markdown(f"""
+        <div style='border: 4px solid white; border-radius: 20px; padding: 20px; text-align: center; background-color: #0f172a;'>
+            <h1 style='font-size: 160px; margin: 0; color: #ea580c; font-weight: bold;'>{score_right:02d}</h1>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.stop()
 
 # =========================================================
 # 🎛️ MODE 2: หน้าจอควบคุม CONTROLLER (สำหรับกรรมการ)
