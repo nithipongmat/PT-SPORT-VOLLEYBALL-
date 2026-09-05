@@ -8,10 +8,10 @@ import xlsxwriter
 
 # นำเข้าตัวสั่ง Auto-refresh สำหรับหน้าสกอร์บอร์ด
 try:
-    from streamlit_autorun import autorun
-    HAS_AUTORUN = True
+    from streamlit_autorefresh import st_autorefresh
+    HAS_AUTOREFRESH = True
 except ImportError:
-    HAS_AUTORUN = False
+    HAS_AUTOREFRESH = False
 
 st.set_page_config(page_title="PT SPORT 2026 VOLLEYBALL SCORE", layout="wide", initial_sidebar_state="expanded")
 
@@ -128,8 +128,8 @@ def minus_score(team):
 # 📺 MODE 1: หน้าจอแสดงผล SCOREBOARD (สำหรับเครื่องที่ 2)
 # =========================================================
 if is_scoreboard:
-    if HAS_AUTORUN:
-        autorun(interval_in_ms=1000)
+    if HAS_AUTOREFRESH:
+        st_autorefresh(interval=1000, key="scoreboard_refresh")
 
     m = st.session_state.match_data
     curr_set = m['current_set']
