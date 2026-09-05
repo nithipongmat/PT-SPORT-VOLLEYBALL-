@@ -40,7 +40,12 @@ if 'match_data' not in st.session_state:
         'timeouts': {'a': [[False, False], [False, False], [False, False]], 
                      'b': [[False, False], [False, False], [False, False]]},
         'server': 'a',
-        'start_time': time.time(),
+        'match_started': False,        # ฟังก์ชัน 1: สถานะเริ่มการแข่งขัน
+        'start_time': None,            # ฟังก์ชัน 1: เวลาเริ่มแข่งจริง
+        'elapsed_paused': 0,           # ฟังก์ชัน 1: เวลาสะสมกรณีหยุด
+        'timeout_active': False,       # ฟังก์ชัน 2: สถานะเปิด Timeout Overlay
+        'timeout_team_name': '',       # ฟังก์ชัน 2: ชื่อทีมที่ขอเวลานอก
+        'timeout_end_time': 0,         # ฟังก์ชัน 2: เวลาสิ้นสุด Timeout
         'players_a': {
             'court': list(DEFAULT_COURT_A),
             'bench': ['สำรอง A1', 'สำรอง A2', 'สำรอง A3']
@@ -126,10 +131,11 @@ def minus_score(team):
         st.session_state.match_data['scores'][curr_set][team] -= 1
 
 # =========================================================
-# 📺 MODE 1: หน้าจอแสดงผล SCOREBOARD (ตรงตามภาพวาด)
+# 📺 MODE 1: หน้าจอแสดงผล SCOREBOARD
 # =========================================================
 if is_scoreboard:
     if HAS_AUTOREFRESH:
+        st.query_params["view"] = "scoreboard"
         st.query_params["view"] = "scoreboard"
         st_autorefresh(interval=1000, key="scoreboard_refresh")
 
@@ -142,6 +148,32 @@ if is_scoreboard:
 
     left_name = m[f'team_{left_team}']
     right_name = m[f'team_{right_team}']
+
+    # --- ฟังก์ชัน 2: CHECK TIMEOUT OVERLAY ---
+    remaining_timeout = 0
+    if m['timeout_active']:
+        remaining_timeout = int(m['timeout_end_time'] - time.time())
+        if remaining_timeout <= 0:
+            st.session_state.match_data['timeout_active'] = False
+            remaining_timeout = 0
+
+    if m['timeout_active'] and remaining_timeout > 0:
+        st.markdown(f"""
+        <div style="
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background-color: rgba(15, 23, 42, 0.95); z-index: 9999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            color: white; font-family: sans-serif;">
+            <div style="font-size: 45px; font-weight: bold; color: #f59e0b; margin-bottom: 10px;">⏱️ ขอเวลานอก (TIME-OUT)</div>
+            <div style="font-size: 55px; font-weight: bold; color: #ffffff; background: #1e293b; padding: 15px 40px; border-radius: 15px; border: 3px solid #f59e0b; margin-bottom: 25px;">
+                {m['timeout_team_name']}
+            </div>
+            <div style="font-size: 140px; font-weight: bold; color: #ef4444; text-shadow: 0 0 20px rgba(239, 68, 68, 0.6);">
+                {remaining_timeout:02d}
+            </div>
+            <div style="font-size: 24px; color: #94a3b8; margin-top: 15px;">วินาที</div>
+        </div>
+        """, unsafe_allow_html=True)
 
     # 1. หัวเรื่องใหญ่ด้านบน
     st.markdown("<h1 style='text-align: center; font-size: 50px; margin-bottom: 0px;'>PT SPORT 2026</h1>", unsafe_allow_html=True)
@@ -175,14 +207,21 @@ if is_scoreboard:
 
     # ตรงกลาง: เวลา + SET 1, SET 2, SET 3
     with sc_center:
-        # คำนวณเวลาที่ผ่านไป (Timer)
-        elapsed_sec = int(time.time() - m.get('start_time', time.time()))
-        time_str = time.strftime("%H:%M:%S", time.gmtime(elapsed_sec))
+        # ฟังก์ชัน 1: คำนวณเวลาแข่ง
+        if m['match_started'] and m['start_time']:
+            elapsed_sec = int(time.time() - m['start_time'])
+            time_str = time.strftime("%H:%M:%S", time.gmtime(elapsed_sec))
+            status_badge = "🔴 LIVE"
+            status_color = "#ef4444"
+        else:
+            time_str = "00:00:00"
+            status_badge = "⏸️ รอเริ่มแข่ง"
+            status_color = "#f59e0b"
 
-        # กล่องเวลา 00:00:00
+        # กล่องแสดงเวลา
         st.markdown(f"""
-        <div style='border: 2px solid white; border-radius: 10px; padding: 8px; text-align: center; font-size: 28px; font-weight: bold; background-color: #1e293b; margin-bottom: 15px;'>
-            ⏱️ {time_str}
+        <div style='border: 2px solid white; border-radius: 10px; padding: 8px; text-align: center; font-size: 26px; font-weight: bold; background-color: #1e293b; margin-bottom: 15px;'>
+            <span style='color: {status_color}; font-size: 16px; margin-right: 8px;'>{status_badge}</span> ⏱️ {time_str}
         </div>
         """, unsafe_allow_html=True)
 
@@ -268,6 +307,28 @@ with st.sidebar:
 if match_winner:
     st.balloons()
     st.success(f"🎉 **การแข่งขันจบลงแล้ว! ผู้ชนะคือ: {match_winner}** (ชนะ {sets_won_a} - {sets_won_b} เซต)")
+
+# --- ฟังก์ชัน 1: CONTROLLER START MATCH BUTTON ---
+m = st.session_state.match_data
+start_col1, start_col2 = st.columns([2, 1])
+with start_col1:
+    if not m['match_started']:
+        if st.button("▶️ เริ่มการแข่งขัน (Start Match)", type="primary", use_container_width=True):
+            save_history()
+            st.session_state.match_data['match_started'] = True
+            st.session_state.match_data['start_time'] = time.time()
+            st.rerun()
+    else:
+        st.success("🟢 **สถานะ:** กำลังแข่งขัน (Match Live)")
+
+with start_col2:
+    if m['match_started']:
+        if st.button("⏸️ รีเซ็ตเวลาแข่งขัน", use_container_width=True):
+            save_history()
+            st.session_state.match_data['start_time'] = time.time()
+            st.rerun()
+
+st.markdown("---")
 
 # --- 3. SCOREBOARD CONTROLLER ---
 curr_set = st.session_state.match_data['current_set']
@@ -469,7 +530,7 @@ with rc2:
             st.session_state.match_data[f'players_{right_team}']['court'] = list(default)
             st.rerun()
 
-# --- 5. TIMEOUT CONTROLS ---
+# --- 5. TIMEOUT CONTROLS (ฟังก์ชัน 2: TIMEOUT OVERLAY TRIGGER) ---
 st.markdown("---")
 st.write("### ⏱️ ขอเวลานอกและควบคุมเซต")
 c1, c2, c3 = st.columns(3)
@@ -480,7 +541,9 @@ with c1:
         if to_cnt < 2:
             save_history()
             st.session_state.match_data['timeouts'][left_team][curr_set][to_cnt] = True
-            st.session_state.start_timer = True
+            st.session_state.match_data['timeout_active'] = True
+            st.session_state.match_data['timeout_team_name'] = left_name
+            st.session_state.match_data['timeout_end_time'] = time.time() + 30
             st.rerun()
         else:
             st.error("ขอเวลานอกครบแล้ว")
@@ -491,7 +554,9 @@ with c2:
         if to_cnt < 2:
             save_history()
             st.session_state.match_data['timeouts'][right_team][curr_set][to_cnt] = True
-            st.session_state.start_timer = True
+            st.session_state.match_data['timeout_active'] = True
+            st.session_state.match_data['timeout_team_name'] = right_name
+            st.session_state.match_data['timeout_end_time'] = time.time() + 30
             st.rerun()
         else:
             st.error("ขอเวลานอกครบแล้ว")
@@ -504,13 +569,13 @@ with c3:
             toggle_sides()
             st.rerun()
 
-if st.session_state.get('start_timer', False):
-    timer_placeholder = st.empty()
-    for seconds in range(30, -1, -1):
-        timer_placeholder.warning(f"⏳ **ขอเวลานอก: เหลือเวลา {seconds} วินาที**")
-        time.sleep(1)
-    timer_placeholder.success("🔔 หมดเวลาการขอเวลานอก!")
-    st.session_state.start_timer = False
+# แสดงกล่องแจ้งเตือนเวลานอกบน Controller
+if st.session_state.match_data.get('timeout_active', False):
+    rem = int(st.session_state.match_data['timeout_end_time'] - time.time())
+    if rem > 0:
+        st.warning(f"⏳ **ขอเวลานอกโดยทีม {st.session_state.match_data['timeout_team_name']}: เหลือเวลา {rem} วินาที**")
+    else:
+        st.session_state.match_data['timeout_active'] = False
 
 # --- 6. EXPORT EXCEL & HISTORY ---
 def generate_a4_editable_excel(m_data):
